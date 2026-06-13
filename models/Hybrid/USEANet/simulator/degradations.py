@@ -1,21 +1,21 @@
 """Differentiable ultrasound image-formation degradation ops.
 
-Each op takes a grayscale image ``[B, 1, H, W]`` in ``[0, 1]`` and returns
+``log_compression`` is a global tonal transform returning a bare image tensor.
+The localized degradation ops (speckle, attenuation, shadow, posterior) take a
+grayscale image ``[B, 1, H, W]`` in ``[0, 1]`` and return
 ``(degraded_image, degradation_map)`` where ``degradation_map`` (also
 ``[B, 1, H, W]``, in ``[0, 1]``) marks *where/how strongly* that degradation
 was applied. The maps double as physical ground truth for router supervision
 (Track C). All ops are autograd-differentiable w.r.t. the input image.
 """
 import torch
-import torch.nn.functional as F
 
 
 def log_compression(img, dynamic_range_db=50.0):
     """Mimic the log compression of the ultrasound scan-conversion pipeline."""
-    eps = 1e-6
     floor = 10.0 ** (-dynamic_range_db / 20.0)
     x = torch.clamp(img, floor, 1.0)
-    out = (20.0 * torch.log10(x + eps) + dynamic_range_db) / dynamic_range_db
+    out = (20.0 * torch.log10(x) + dynamic_range_db) / dynamic_range_db
     return torch.clamp(out, 0.0, 1.0)
 
 
