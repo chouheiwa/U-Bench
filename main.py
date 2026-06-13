@@ -319,8 +319,15 @@ def train(args,exp_save_dir, writer, logger, model):
             volume_batch, label_batch = volume_batch.to(device), label_batch.to(device)
 
             if args.do_deeps:
+                if hasattr(model, 'set_training_progress'):
+                    model.set_training_progress(iter_num / max(1, max_iterations))
                 outputs = model(volume_batch)
-                loss = deep_supervision_loss(outputs=outputs,label_batch=label_batch,loss_metric=criterion)
+                # Models may supply their own deep-supervision loss (e.g. USEANet's
+                # weighted fg/bg structure loss); otherwise use the shared criterion.
+                if hasattr(model, 'deep_supervision_loss'):
+                    loss = model.deep_supervision_loss(outputs, label_batch)
+                else:
+                    loss = deep_supervision_loss(outputs=outputs,label_batch=label_batch,loss_metric=criterion)
                 outputs=outputs[-1]
             else:
                 outputs = model(volume_batch)
@@ -469,6 +476,7 @@ if __name__ == "__main__":
 
     exp_save_dir, writer, logger, model = init_dir(args)
     row_data=vars(args)
+    os.makedirs("./result", exist_ok=True)
 
 
     if args.just_for_test:
