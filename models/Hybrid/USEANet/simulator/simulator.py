@@ -50,7 +50,7 @@ class UltrasoundDegradationSimulator(nn.Module):
         if img.shape[1] != 1:
             img = img.mean(dim=1, keepdim=True)
         h, w = img.shape[-2:]
-        gen = torch.Generator(device="cpu")
+        gen = torch.Generator(device=img.device)
         gen.manual_seed(int(torch.randint(0, 2**31 - 1, (1,), generator=self._gen).item()))
 
         x = log_compression(img, self.dynamic_range_db)

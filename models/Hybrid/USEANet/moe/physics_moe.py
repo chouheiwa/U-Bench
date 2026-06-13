@@ -43,7 +43,11 @@ class PhysicsMoE(nn.Module):
     def aux_loss(self, route_weight, lb_weight):
         if self.last_gate is None:
             raise RuntimeError("aux_loss called before forward()")
-        target = self.supervision_target if self.supervision_target is not None else self.last_proxy
+        # The router-supervision target (proxy or physical GT) is a pseudo-label:
+        # detach it so KL pulls the gate toward the target, not the target (and
+        # the backbone features behind the proxy) toward the gate.
+        target = (self.supervision_target if self.supervision_target is not None
+                  else self.last_proxy).detach()
         route = router_supervision_loss(self.last_gate, target)
         lb = load_balance_loss(self.last_gate)
         return route_weight * route + lb_weight * lb
