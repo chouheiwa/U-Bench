@@ -26,11 +26,10 @@ def speckle_snr(images, patch=16):
             for j in range(0, w - patch + 1, patch):
                 p = img[i:i + patch, j:j + patch]
                 mu, sd = float(p.mean()), float(p.std())
-                if sd > 1e-6:
-                    snrs.append(mu / sd)
-                else:
-                    # Zero-variance patch: perfectly flat, SNR is unbounded.
-                    snrs.append(np.inf)
+                # eps keeps a perfectly flat patch finite (large SNR) instead of
+                # injecting inf into the median, which would poison the gate's
+                # |snr_synth - snr_real| comparison downstream.
+                snrs.append(mu / (sd + 1e-6))
     return float(np.median(snrs)) if snrs else 0.0
 
 
