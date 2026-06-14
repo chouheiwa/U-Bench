@@ -90,7 +90,8 @@ from .Hybrid.CFFormer.CFFormer import cfformer as CFFormer
 from .Hybrid.CENet.CENet import cenet as CENet
 from .Hybrid.H2Former.H2Former import h2former as H2Former
 from .Hybrid.ScribFormer.ScribFormer import scribformer as ScribFormer
-# from .Hybrid.BRAUnet_plus_plus.bra_unet import braunet_plus_plus  #  bug  
+from .Hybrid.USEANet import USEANet  # PVT-B0 ultrasound seg net (deep supervision)
+# from .Hybrid.BRAUnet_plus_plus.bra_unet import braunet_plus_plus  #  bug
 
 from .Transformer.BATFormer.BATFormer import batformer as BATFormer
 from .Transformer.Polyp_PVT.Polyp_PVT import polyp_pvt as Polyp_PVT
@@ -99,17 +100,38 @@ from .Transformer.SwinUnet.SwinUnet import swinunet as SwinUnet
 from .Transformer.MedT.MedT import medt as MedT
 
 
-from .Mamba.AC_MambaSeg.AC_MambaSeg import ac_mambaseg as AC_MambaSeg
-from .Mamba.H_vmunet.H_vmunet import h_vmunet as H_vmunet
-from .Mamba.MambaUnet.MambaUnet import mambaunet as MambaUnet
-from .Mamba.MUCM_Net.MUCM_Net import mucm_net as MUCM_Net
-from .Mamba.Swin_umamba.Swin_umamba import swin_umamba as Swin_umamba
-from .Mamba.Swin_umambaD.Swin_umambaD import swin_umambad as Swin_umambaD
-from .Mamba.UltraLight_VM_UNet.UltraLight_VM_UNet import ultralight_vm_unet as UltraLight_VM_UNet
-from .Mamba.VMUNet.VMUNet import vmunet as VMUNet
-from .Mamba.VMUNetV2.VMUNetV2 import vmunetv2 as VMUNetV2
-from .Mamba.CFM_UNet.CFM_UNet import cfm_unet as CFM_UNet
-from .Mamba.MedVKAN.MedVKAN import medvkan as MedVKAN
+# Mamba-based models require optional deps (mamba_ssm / causal_conv1d / fvcore ...).
+# Import each independently so one missing dependency does not skip the rest.
+def _try_import_mamba():
+    import warnings
+    _g = globals()
+    _mamba_models = [
+        ("AC_MambaSeg", ".Mamba.AC_MambaSeg.AC_MambaSeg", "ac_mambaseg"),
+        ("H_vmunet", ".Mamba.H_vmunet.H_vmunet", "h_vmunet"),
+        ("MambaUnet", ".Mamba.MambaUnet.MambaUnet", "mambaunet"),
+        ("MUCM_Net", ".Mamba.MUCM_Net.MUCM_Net", "mucm_net"),
+        ("Swin_umamba", ".Mamba.Swin_umamba.Swin_umamba", "swin_umamba"),
+        ("Swin_umambaD", ".Mamba.Swin_umambaD.Swin_umambaD", "swin_umambad"),
+        ("UltraLight_VM_UNet", ".Mamba.UltraLight_VM_UNet.UltraLight_VM_UNet", "ultralight_vm_unet"),
+        ("VMUNet", ".Mamba.VMUNet.VMUNet", "vmunet"),
+        ("VMUNetV2", ".Mamba.VMUNetV2.VMUNetV2", "vmunetv2"),
+        ("CFM_UNet", ".Mamba.CFM_UNet.CFM_UNet", "cfm_unet"),
+        ("MedVKAN", ".Mamba.MedVKAN.MedVKAN", "medvkan"),
+    ]
+    import importlib
+    for alias, module, attr in _mamba_models:
+        try:
+            mod = importlib.import_module(module, __name__)
+            _g[alias] = getattr(mod, attr)
+        except Exception as err:
+            warnings.warn(
+                f"Mamba model '{alias}' unavailable ({type(err).__name__}: {err}). "
+                "Install its optional dependencies (e.g. mamba_ssm/causal_conv1d) to enable it.",
+                stacklevel=2,
+            )
+
+
+_try_import_mamba()
 
 
 def load_model_lazily(config):
