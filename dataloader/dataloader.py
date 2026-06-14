@@ -1,7 +1,7 @@
 from dataloader.dataset import MedicalDataSets,Covid19CTScanDataset,KvasirSEGDataset,DataScienceBowl2018Dataset,PH2Dataset,MedicalDataSetsVal,MonuSeg2018Dataset
 from dataloader.dataset import KvasirSEGDatasetVAL,DRIVEdataset,CHASEDB1Dataset, BUSBRADatasets,GlasDataSets
 from albumentations.core.composition import Compose
-from albumentations import RandomRotate90, Resize
+from albumentations import RandomRotate90, Resize, Flip
 from torch.utils.data import DataLoader
 from albumentations.augmentations import transforms
 from dataloader.dataset_synapse import Synapse_dataset,RandomGenerator_synapse
@@ -21,7 +21,7 @@ def getDataloader(args):
 
     train_transform = Compose([
         RandomRotate90(),
-        transforms.Flip(),
+        Flip(),
         Resize(img_size, img_size),
         transforms.Normalize(),
     ])
