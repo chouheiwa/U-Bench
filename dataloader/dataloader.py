@@ -1,7 +1,7 @@
 from dataloader.dataset import MedicalDataSets,Covid19CTScanDataset,KvasirSEGDataset,DataScienceBowl2018Dataset,PH2Dataset,MedicalDataSetsVal,MonuSeg2018Dataset
 from dataloader.dataset import KvasirSEGDatasetVAL,DRIVEdataset,CHASEDB1Dataset, BUSBRADatasets,GlasDataSets
 from albumentations.core.composition import Compose
-from albumentations import RandomRotate90, Resize
+from albumentations import RandomRotate90, Resize, Flip
 from torch.utils.data import DataLoader
 from albumentations.augmentations import transforms
 from dataloader.dataset_synapse import Synapse_dataset,RandomGenerator_synapse
@@ -21,10 +21,28 @@ def getDataloader(args):
 
     train_transform = Compose([
         RandomRotate90(),
-        transforms.Flip(),
+        Flip(),
         Resize(img_size, img_size),
         transforms.Normalize(),
     ])
+
+    # Opt-in stronger augmentation for USEANet experiments only (USEANET_STRONG_AUG=1).
+    # Default path above is left byte-identical for every other model/dataset.
+    # Keeps the same Normalize() ending so the adapter's x*255 rescale still applies.
+    import os
+    if os.environ.get("USEANET_STRONG_AUG") == "1":
+        import albumentations as A
+        train_transform = Compose([
+            RandomRotate90(),
+            Flip(),
+            Resize(img_size, img_size),
+            A.Affine(scale=(0.8, 1.2), translate_percent=0.0625,
+                     rotate=(-15, 15), p=0.5, cval_mask=0),
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+            A.GaussNoise(var_limit=(5.0, 30.0), p=0.2),  # mild, mimics speckle
+            A.ElasticTransform(alpha=1, sigma=50, p=0.3),
+            transforms.Normalize(),
+        ])
 
     val_transform = Compose([
         Resize(img_size, img_size),

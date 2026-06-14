@@ -557,5 +557,11 @@
         "modelname": "MedVKAN",
         "id": 114,
         "filename": "MedVKAN.py"
+    },
+    {
+        "modelname": "USEANet",
+        "id": 115,
+        "deeps_supervision": 1,
+        "filename": "Hybrid/USEANet/usea_core.py"
     }
 ]

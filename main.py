@@ -85,6 +85,7 @@ def parse_arguments():
     parser.add_argument('--img_size', type=int, default=256, help='img_size')
     parser.add_argument('--num_classes', type=int, default=1, help='img_size')
     parser.add_argument('--input_channel', type=int, default=3, help='img_size')
+    parser.add_argument('--pretrained_model_path', type=str, default=None, help='dir holding pvt_v2_b0.pth (USEANet backbone)')
     parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
     parser.add_argument('--exp_name', type=str, default="default_exp", help='Experiment name')
     parser.add_argument('--zero_shot_base_dir', type=str, default="", help='zero_base_dir')
@@ -117,7 +118,8 @@ def deep_supervision_loss(outputs, label_batch, loss_metric,weights=None):
 
 def load_model(args, model_best_or_final="best"):
     exp_save_dir= args.exp_save_dir
-    model = build_model(args, input_channel=args.input_channel, num_classes=args.num_classes).to(device)
+    _pre = {'pretrained_model_path': args.pretrained_model_path} if getattr(args, 'pretrained_model_path', None) else {}
+    model = build_model(args, input_channel=args.input_channel, num_classes=args.num_classes, **_pre).to(device)
     if model_best_or_final == "best":
         model_path = os.path.join(exp_save_dir, f'checkpoint_best.pth')
 
@@ -209,7 +211,8 @@ def init_dir(args):
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-    model = build_model(config=args,input_channel=args.input_channel, num_classes=args.num_classes).to(device)
+    _pre = {'pretrained_model_path': args.pretrained_model_path} if getattr(args, 'pretrained_model_path', None) else {}
+    model = build_model(config=args,input_channel=args.input_channel, num_classes=args.num_classes, **_pre).to(device)
 
     return exp_save_dir, writer, logger, model#, wandb
 
@@ -319,8 +322,15 @@ def train(args,exp_save_dir, writer, logger, model):
             volume_batch, label_batch = volume_batch.to(device), label_batch.to(device)
 
             if args.do_deeps:
+                if hasattr(model, 'set_training_progress'):
+                    model.set_training_progress(iter_num / max(1, max_iterations))
                 outputs = model(volume_batch)
-                loss = deep_supervision_loss(outputs=outputs,label_batch=label_batch,loss_metric=criterion)
+                # Models may supply their own deep-supervision loss (e.g. USEANet's
+                # weighted fg/bg structure loss); otherwise use the shared criterion.
+                if hasattr(model, 'deep_supervision_loss'):
+                    loss = model.deep_supervision_loss(outputs, label_batch)
+                else:
+                    loss = deep_supervision_loss(outputs=outputs,label_batch=label_batch,loss_metric=criterion)
                 outputs=outputs[-1]
             else:
                 outputs = model(volume_batch)
@@ -469,6 +479,7 @@ if __name__ == "__main__":
 
     exp_save_dir, writer, logger, model = init_dir(args)
     row_data=vars(args)
+    os.makedirs("./result", exist_ok=True)
 
 
     if args.just_for_test:
