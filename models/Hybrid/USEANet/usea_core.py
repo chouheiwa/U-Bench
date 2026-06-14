@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -381,8 +383,11 @@ class USEANet(nn.Module):
         # x2 keeps the plain fused branch; x3/x4 use the ultrasound-physics MoE
         # (design §3.3: avoid multi-layer CNN MoE variance, MoE only on semantic layers).
         self.feature_processor_2 = MultiBranchFeatureProcessor(64, channel)
-        self.feature_processor_3 = PhysicsMoE(160, channel)
-        self.feature_processor_4 = PhysicsMoE(256, channel)
+        # Ablation switch: USEANET_NO_MOE=1 swaps the physics MoE on x3/x4 for the
+        # plain multi-branch processor, to isolate the MoE's effect on accuracy.
+        _proc = MultiBranchFeatureProcessor if os.environ.get("USEANET_NO_MOE") == "1" else PhysicsMoE
+        self.feature_processor_3 = _proc(160, channel)
+        self.feature_processor_4 = _proc(256, channel)
         
         # 分层特征聚合
         self.feature_aggregator = HierarchicalFeatureAggregation(channel, self.num_classes)

@@ -7,10 +7,11 @@ This adapter keeps that weighted loss instead of U-Bench's shared ``BCEDiceLoss`
 * runs the core net with ``num_classes`` channels per head (default 1 = binary),
 * repeats a 1-channel input to 3 channels for the PVT backbone,
 * ``forward`` returns the 4 foreground maps as a deep-supervision tuple, ordered
-  so the primary prediction ``lateral_map_5_fg`` is last (U-Bench uses
-  ``outputs[-1]`` for metrics and validation), and caches the paired background
-  maps on ``self._bg_maps`` (the bg heads are an intrinsic forward product, so
-  no extra compute),
+  coarse->fine so the primary refined prediction ``lateral_map_2_fg`` is last
+  (U-Bench uses ``outputs[-1]`` for metrics and validation; ``lateral_map_5_fg``
+  is only the coarse global aggregate), and caches the paired background maps on
+  ``self._bg_maps`` in the same order (the bg heads are an intrinsic forward
+  product, so no extra compute),
 * ``deep_supervision_loss`` applies the original weighted ``structure_loss`` over
   all 4 fg/bg scales. ``main.py`` calls this method when present, so the weighted
   loss is used for training while every other model keeps ``BCEDiceLoss``.
@@ -55,15 +56,24 @@ class USEANet(nn.Module):
         )
 
     def forward(self, x):
+        # U-Bench's pipeline applies ImageNet Normalize() then divides by 255
+        # again in dataset.py, so inputs arrive at ~+-0.01. Undo that erroneous
+        # /255 to restore the ImageNet-normalized scale the pretrained PVT-B0
+        # backbone expects (without it the pretrained features are degenerate and
+        # IoU caps near 0.13). From-scratch models are unaffected and keep the
+        # repo-wide pipeline untouched.
+        x = x * 255.0
         # PVT-B0 backbone expects 3-channel input.
         if x.shape[1] == 1:
             x = x.repeat(1, 3, 1, 1)
         (lateral_map_2_fg, lateral_map_3_fg, lateral_map_4_fg, lateral_map_5_fg,
          bg2, bg3, bg4, bg5) = self.net(x)
-        # Cache bg maps (fg2..fg5 order) for the weighted loss.
-        self._bg_maps = (bg2, bg3, bg4, bg5)
-        # Deep-supervision tuple; outputs[-1] == primary prediction.
-        return (lateral_map_2_fg, lateral_map_3_fg, lateral_map_4_fg, lateral_map_5_fg)
+        # lateral_map_2 is the final refined full-res prediction (PraNet/USEANet
+        # convention); lateral_map_5 is the coarse global aggregate. U-Bench scores
+        # and validates on outputs[-1], so order coarse->fine to put the primary
+        # head (fg2) last. Cache bg maps in the SAME order for the paired loss.
+        self._bg_maps = (bg5, bg4, bg3, bg2)
+        return (lateral_map_5_fg, lateral_map_4_fg, lateral_map_3_fg, lateral_map_2_fg)
 
     def set_training_progress(self, frac):
         self._progress = float(max(0.0, min(1.0, frac)))
