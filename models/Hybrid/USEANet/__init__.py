@@ -22,6 +22,8 @@ NOTE: caching the bg maps assumes the single-GPU, forward-then-loss order that
 Register with ``deeps_supervision: 1`` in ``models/model_id.json``.
 """
 
+import os
+
 import torch.nn as nn
 
 from .usea_core import USEANet as _USEANetCore
@@ -95,17 +97,28 @@ class USEANet(nn.Module):
     def deep_supervision_loss(self, fg_outputs, label_batch):
         """USEANet's weighted multi-scale fg/bg structure loss.
 
-        ``fg_outputs`` is the tuple returned by ``forward`` (fg2, fg3, fg4, fg5);
-        the paired bg maps are read from ``self._bg_maps`` set during that call.
+        ``fg_outputs`` is the coarse->fine tuple returned by ``forward``
+        (fg5, fg4, fg3, fg2); the paired bg maps are read from ``self._bg_maps``
+        set during that call, in the same coarse->fine order.
         """
         if self._bg_maps is None:
             raise RuntimeError("deep_supervision_loss called before forward()")
         bg_outputs = self._bg_maps
         bg_mask = 1.0 - label_batch
         nc = self.num_classes
+        # Optional nnU-Net-style resolution-weighted deep supervision
+        # (USEANET_WEIGHTED_DS=1): down-weight the coarse heads. fg_outputs is
+        # coarse->fine, so weights ascend; normalized to sum 1. Default = equal.
+        n = len(fg_outputs)
+        if os.environ.get("USEANET_WEIGHTED_DS") == "1":
+            w = [0.5 ** (n - 1 - i) for i in range(n)]  # coarse->fine: 1/8,1/4,1/2,1
+            s = sum(w)
+            scale_w = [wi / s for wi in w]
+        else:
+            scale_w = [1.0] * n
         total = 0.0
-        for fg, bg in zip(fg_outputs, bg_outputs):
-            total = total + structure_loss(fg, bg, label_batch, bg_mask, nc)
+        for wi, fg, bg in zip(scale_w, fg_outputs, bg_outputs):
+            total = total + wi * structure_loss(fg, bg, label_batch, bg_mask, nc)
         # Add MoE auxiliary losses (router supervision + load balance), annealed.
         rw = self._route_weight()
         for moe in self._moe_modules():
