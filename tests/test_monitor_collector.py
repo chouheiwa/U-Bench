@@ -64,3 +64,30 @@ def test_parse_cmdline_args_missing_are_none():
     assert out["model"] is None
     assert out["gpu"] is None
     assert out["exp_name"] is None
+
+
+from tools.monitor.collector import parse_processes
+
+PS_OUTPUT = """  31542   3600  98.5  2.1  python main.py --model USEANet --gpu 1 --dataset_name busi --exp_name run_a --max_epochs 250
+  31999    120  50.0  1.0  python main.py --model U_Net --gpu 0 --dataset_name busi --exp_name run_b
+   4242     10   0.0  0.1  python -m tools.monitor --port 8800
+   5151      5   0.0  0.1  grep main.py
+"""
+
+
+def test_parse_processes_filters_to_main_py():
+    procs = parse_processes(PS_OUTPUT)
+    assert len(procs) == 2  # monitor 与 grep 行被排除
+    pids = {p["pid"] for p in procs}
+    assert pids == {31542, 31999}
+
+
+def test_parse_processes_fields():
+    procs = parse_processes(PS_OUTPUT)
+    a = next(p for p in procs if p["pid"] == 31542)
+    assert a["uptime_sec"] == 3600
+    assert abs(a["cpu"] - 98.5) < 1e-6
+    assert abs(a["mem"] - 2.1) < 1e-6
+    assert "main.py" in a["cmdline"]
+    assert a["args"]["model"] == "USEANet"  # 已内联 parse_cmdline_args
+    assert a["args"]["gpu"] == 1
