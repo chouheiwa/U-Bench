@@ -19,9 +19,9 @@
 
 **取舍已定:只留 `USEANET_DISC_LR=1`;EMA、warmup、TTA 全 DROP**(EMA 单独 −0.003;TTA 在强化后的模型上 plain ≥ tta,不再有用)。新最佳 **IoU 0.7085 / Dice 0.7923(均值),最佳 seed Dice 0.805**,踏入文献 SOTA 带(~0.80–0.83)下沿(旧最佳 0.682/0.773)。扫描脚本+日志在 gitignored `output/_sweep/`。
 
-**正式复现(就这一个开关):**
+**正式复现(A 路线定操作点后,mult=0.2 已是默认,显式写出更清晰):**
 ```bash
-USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.1 USEANET_STRONG_AUG=1 \
+USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.2 USEANET_STRONG_AUG=1 \
 conda run -n ubench1 python main.py --gpu 0 --model USEANet --model_id 115 \
   --base_dir hf_data/data/busi --dataset_name busi --do_deeps 1 \
   --pretrained_model_path /home/chouheiwa/experiment/pretrain_model \
@@ -33,7 +33,7 @@ conda run -n ubench1 python main.py --gpu 0 --model USEANet --model_id 115 \
 - **B 先 — 损失工程(唯一没碰的结构杠杆)。✅ 代码已实现并合并 main**(merge `e9e7fe5`,2026-06-15;spec/plan 在 `docs/superpowers/{specs,plans}/2026-06-15-useanet-loss-engineering*`,memory `[[useanet-loss-engineering]]`)。B1 形态:`usea_loss.py` 的 `structure_loss` 保留边界权重+背景分支+加权 wBCE 分类锚,**只切区域项**:`USEANET_LOSS_REGION=iou`(默认=字节级等价旧实现)/`dice`/`focal_tversky`(α/β/γ 经 `USEANET_FT_*`,默认 0.3/0.7/(4/3),已 clamp 防 NaN)。`tests/test_usea_loss.py` 13 测试,全套 87 passed,默认全关对其他模型零影响。
   - **GPU 验收已完成 → DROP 两者,KEEP `iou` 默认。** seed41 单点筛(DISC_LR+strong-aug+250ep,基线 IoU 0.7085/Dice 0.7923):`dice` = IoU **0.7011**/Dice 0.7840(@ep211);`focal_tversky` = IoU **0.6995**/Dice 0.7899(@ep104,默认 α/β/γ=0.3/0.7/(4/3))。两者 IoU 均低于基线(−0.007 / −0.009),**未晋级 3-seed**。结论:B1 区域项替换在 BUSI 上无增益,保留 `iou` 默认。损失工程 B 路线到此收尾,**直接进 A 路线**(用 `iou` 损失扫 `backbone_lr_mult` 0.05/0.1/0.2)。日志在 gitignored `output/_sweep/` + `output/USEANet/busi/disc_{dice,ft}_busi/training.log`。
   - **⚠️ 既有 bug(本次发现,与损失改动无关):`main.py --gpu 1` 会卡死**——进程 CPU 空转、永不分配显存(`--gpu 0` 正常;GPU 1 硬件本身 OK,torch 直接 `CUDA_VISIBLE_DEVICES=1` 可正常分配)。**多卡并行跑请用 `CUDA_VISIBLE_DEVICES=N python main.py ... --gpu 0`**(钉物理卡 N、走能跑通的 `--gpu 0` 路径),别用 `--gpu N>0`。根因待查(疑在 main.py 设备选择/初始化)。
-- **A 后 — 调 `backbone_lr_mult`。** 用 B 胜出的损失,再扫 0.05/0.1/0.2 定操作点。**为什么在 B 之后:** lr_mult 是操作点微调、依赖损失函数;先调 A 再换 B 会让 A 作废。
+- **A — 调 `backbone_lr_mult`。✅ 完成(2026-06-16)。结论:默认改为 `0.2`(均值持平、方差减半)。** 用胜出损失 `iou`,seed41 单点扫 0.05/0.1/0.2:`0.05`=0.7029、`0.1`=0.6997(=`disc_s41`)、`0.2`=**0.7110**(超基线 +0.011,清噪声)→ 晋级 3-seed 复核。`mult=0.2` 3-seed(41/42/43)= **IoU 0.7086 ± 0.0043 / Dice 0.7935**,对比 `mult=0.1` 基线 0.7085 ± 0.009 / Dice 0.7923:**均值几乎不变(+0.0001),但方差减半(0.0043 vs 0.009)、Dice +0.001**——seed41 的 +0.011 是噪声(seed43 仅 0.7037)。**取舍:采纳 `mult=0.2` 为新默认**(更紧 error bar,对论文报告有利);已改 `training_recipe.py` 默认 `0.1→0.2`(测试 `test_build_optimizer_disc_lr_default_mult_is_0p2` 守护)。日志在 `output/USEANet/busi/disc_mult{005,02,02_s42,02_s43}/`。**注:精度本身未提升,A 路线无精度增益,杠杆已用尽 → 进 C 路线(转广度/论文骨架)。**
 - **最后 C — 转广度(论文骨架,价值 > BUSI 峰值)。** 跨数据集(bus/BUSBRA/tuscui)复现 DISC_LR + 最佳损失;MoE 消融(专家数/硬软门控/各物理专家贡献/`eff_experts`);nnU-Net/Mamba(VM-UNet)/MedSAM baseline 同 split 重跑。详见下方原始待办 + `docs/superpowers/research/2026-06-14-segmentation-sota-and-nnunet.md`。
 
 ---

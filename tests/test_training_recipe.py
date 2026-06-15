@@ -89,6 +89,17 @@ def test_build_optimizer_disc_lr_two_groups(monkeypatch):
     assert bb.isdisjoint(rest)
 
 
+def test_build_optimizer_disc_lr_default_mult_is_0p2(monkeypatch):
+    # A 路线定论:默认 backbone_lr_mult=0.2(均值持平 0.1、方差减半)。
+    monkeypatch.setenv("USEANET_DISC_LR", "1")
+    monkeypatch.delenv("USEANET_BACKBONE_LR_MULT", raising=False)
+    monkeypatch.delenv("USEANET_ADAMW", raising=False)
+    model = _TinyNet()
+    opt, group_base_lrs = tr.build_optimizer(model, 0.01)
+    assert group_base_lrs == [pytest.approx(0.002), pytest.approx(0.01)]
+    assert opt.param_groups[0]["lr"] == pytest.approx(0.002)  # backbone = base*0.2
+
+
 def test_build_optimizer_adamw(monkeypatch):
     monkeypatch.setenv("USEANET_ADAMW", "1")
     monkeypatch.delenv("USEANET_DISC_LR", raising=False)

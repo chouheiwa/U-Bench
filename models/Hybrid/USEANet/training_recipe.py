@@ -56,7 +56,7 @@ def build_optimizer(model, base_lr):
         return opt, [base_lr]
 
     if disc:
-        mult = float(os.environ.get("USEANET_BACKBONE_LR_MULT", "0.1"))
+        mult = float(os.environ.get("USEANET_BACKBONE_LR_MULT", "0.2"))
         backbone, rest = _split_params(model)
         if not backbone:
             warnings.warn(
