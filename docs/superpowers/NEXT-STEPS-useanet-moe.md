@@ -1,7 +1,40 @@
 # USEANet-MoE — 下一步待办(新会话接续用)
 
 > 更新:2026-06-14 · 已合并到 main。分支 `feat/useanet-moe`。
-> 环境:conda `ubench1`(torch 2.7,2× RTX 2080 Ti,用 `--gpu 0`)。测试:`conda run -n ubench1 python -m pytest tests/ -q`(当前 49 passed)。
+> 环境:conda `ubench1`(torch 2.7,2× RTX 2080 Ti,用 `--gpu 0`)。测试:`conda run -n ubench1 python -m pytest tests/ -q`(当前 74 passed)。
+
+---
+
+## 2026-06-15 更新:优化器配方扫描结论 + 下一步路线(B→A→C)
+
+**已合并 main**(merge `48d0b48`):新增 `models/Hybrid/USEANet/training_recipe.py`,4 个 env 开关(默认全关,其他模型零影响,详见 memory [[useanet-recipe-optim]]):`USEANET_DISC_LR`(+`USEANET_BACKBONE_LR_MULT`,默认 0.1)、`USEANET_WARMUP_EPOCHS`、`USEANET_EMA`(+`USEANET_EMA_DECAY`)、`USEANET_ADAMW`。
+
+**3-seed 扫描结果(41/42/43,250ep,strong-aug,无 TTA,BUSI):**
+
+| 配置 | IoU mean±std | Dice | 判定 |
+|---|---|---|---|
+| 对照(仅 strong-aug) | 0.6481 ± 0.017 | — | 基线 |
+| **+DISC_LR** | **0.7085 ± 0.009** | **0.7923** | **KEEP**(gain +0.060 ≫ std;最佳 seed42 0.720/0.805) |
+| 三件套(+warmup5+EMA) | 0.7009 ± 0.007 | — | DROP(均值反低于 DISC_LR 单项) |
+
+**取舍已定:只留 `USEANET_DISC_LR=1`;EMA、warmup、TTA 全 DROP**(EMA 单独 −0.003;TTA 在强化后的模型上 plain ≥ tta,不再有用)。新最佳 **IoU 0.7085 / Dice 0.7923(均值),最佳 seed Dice 0.805**,踏入文献 SOTA 带(~0.80–0.83)下沿(旧最佳 0.682/0.773)。扫描脚本+日志在 gitignored `output/_sweep/`。
+
+**正式复现(就这一个开关):**
+```bash
+USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.1 USEANET_STRONG_AUG=1 \
+conda run -n ubench1 python main.py --gpu 0 --model USEANet --model_id 115 \
+  --base_dir hf_data/data/busi --dataset_name busi --do_deeps 1 \
+  --pretrained_model_path /home/chouheiwa/experiment/pretrain_model \
+  --batch_size 8 --max_epochs 250 --base_lr 0.01 --seed 41 --exp_name disc_busi
+```
+
+**下一步路线(顺序有依赖,别颠倒):**
+
+- **B 先 — 损失工程(唯一没碰的结构杠杆)。** 损失是 USEANet 隔离的(`models/Hybrid/USEANet/usea_loss.py` 的 `structure_loss` + 适配器 `deep_supervision_loss`),**不碰共享 `main.py`**,加 `USEANET_*` 开关默认关即可,比优化器接入风险低。候选:`Dice+CE`(nnU-Net 同款)、`focal-Tversky`(治小病灶类不平衡)。以 **DISC_LR strong-aug 250ep 为新基线**,seed41 先筛,赢家再多 seed。**建议开新会话从 brainstorming 走完整一轮 spec→plan→TDD。**
+- **A 后 — 调 `backbone_lr_mult`。** 用 B 胜出的损失,再扫 0.05/0.1/0.2 定操作点。**为什么在 B 之后:** lr_mult 是操作点微调、依赖损失函数;先调 A 再换 B 会让 A 作废。
+- **最后 C — 转广度(论文骨架,价值 > BUSI 峰值)。** 跨数据集(bus/BUSBRA/tuscui)复现 DISC_LR + 最佳损失;MoE 消融(专家数/硬软门控/各物理专家贡献/`eff_experts`);nnU-Net/Mamba(VM-UNet)/MedSAM baseline 同 split 重跑。详见下方原始待办 + `docs/superpowers/research/2026-06-14-segmentation-sota-and-nnunet.md`。
+
+---
 
 ## 现状(本轮成果)
 - 修复两处致命 bug:输出头顺序(`a3903cf`)、预训练 backbone 输入尺度(`a3903cf`)。
