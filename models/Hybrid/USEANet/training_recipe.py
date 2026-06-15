@@ -29,3 +29,52 @@ def warmup_iters(iters_per_epoch):
     """USEANET_WARMUP_EPOCHS (default 0) * iters_per_epoch."""
     epochs = int(os.environ.get("USEANET_WARMUP_EPOCHS", "0"))
     return epochs * iters_per_epoch
+
+
+def _split_params(model):
+    backbone, rest = [], []
+    for name, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if any(name.startswith(pref) for pref in BACKBONE_PARAM_PREFIXES):
+            backbone.append(p)
+        else:
+            rest.append(p)
+    return backbone, rest
+
+
+def build_optimizer(model, base_lr):
+    """Return (optimizer, group_base_lrs). With USEANET_DISC_LR and USEANET_ADAMW
+    both off this is byte-identical to main.py's original:
+    optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=0.0001)."""
+    disc = os.environ.get("USEANET_DISC_LR") == "1"
+    adamw = os.environ.get("USEANET_ADAMW") == "1"
+
+    if not disc and not adamw:
+        opt = optim.SGD(model.parameters(), lr=base_lr,
+                        momentum=0.9, weight_decay=0.0001)
+        return opt, [base_lr]
+
+    if disc:
+        mult = float(os.environ.get("USEANET_BACKBONE_LR_MULT", "0.1"))
+        backbone, rest = _split_params(model)
+        if not backbone:
+            warnings.warn(
+                "USEANET_DISC_LR: no params matched %s; falling back to a single "
+                "group" % (BACKBONE_PARAM_PREFIXES,))
+            groups = [{"params": rest, "lr": base_lr}]
+            group_base_lrs = [base_lr]
+        else:
+            backbone_lr = base_lr * mult
+            groups = [{"params": backbone, "lr": backbone_lr},
+                      {"params": rest, "lr": base_lr}]
+            group_base_lrs = [backbone_lr, base_lr]
+    else:  # adamw only, single group
+        groups = [{"params": list(model.parameters()), "lr": base_lr}]
+        group_base_lrs = [base_lr]
+
+    if adamw:
+        opt = optim.AdamW(groups, lr=base_lr, weight_decay=0.0001)
+    else:
+        opt = optim.SGD(groups, lr=base_lr, momentum=0.9, weight_decay=0.0001)
+    return opt, group_base_lrs
