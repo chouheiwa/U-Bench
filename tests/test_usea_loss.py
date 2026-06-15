@@ -128,3 +128,19 @@ def test_end_to_end_via_deep_supervision(monkeypatch, region):
     loss = model.deep_supervision_loss(outputs, label)
     assert loss.dim() == 0 and torch.isfinite(loss)
     loss.backward()  # 与 MoE 辅助 + 多尺度 + 背景分支组合后仍可反传
+
+
+def test_focal_tversky_no_nan_grad_at_saturation(monkeypatch):
+    # Perfect, saturated prediction makes TI hit exactly 1 -> (1-TI)=0.
+    # The clamp must keep the gradient finite (no NaN through ^(1/gamma)).
+    monkeypatch.setenv("USEANET_LOSS_REGION", "focal_tversky")
+    mask_fg = torch.zeros(1, 1, 16, 16)
+    mask_fg[:, :, 4:12, 4:12] = 1.0
+    mask_bg = 1.0 - mask_fg
+    # logits that saturate sigmoid: huge positive on fg, huge negative on bg
+    pred = (mask_fg * 60.0 - 30.0).clone().requires_grad_(True)
+    pred_bg = (mask_bg * 60.0 - 30.0)
+    loss = L.structure_loss(pred, pred_bg, mask_fg, mask_bg, 1)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert pred.grad is not None and torch.all(torch.isfinite(pred.grad))

@@ -37,7 +37,7 @@ def _region_focal_tversky(p, mask_fg, weit, alpha, beta, gamma):
     fp = ((p * (1 - mask_fg)) * weit).sum(dim=(2, 3))
     fn = (((1 - p) * mask_fg) * weit).sum(dim=(2, 3))
     ti = (inter + 1) / (inter + alpha * fp + beta * fn + 1)
-    return (1 - ti) ** (1.0 / gamma)
+    return (1 - ti).clamp(min=1e-7) ** (1.0 / gamma)
 
 
 def _resolve_region():
