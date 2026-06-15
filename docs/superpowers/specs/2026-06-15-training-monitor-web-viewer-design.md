@@ -115,3 +115,10 @@ tools/monitor/
 
 - 端口 `8800`、host `127.0.0.1`、output-root `./output`、轮询 `4s`、`STALE_SEC=180`、tail 读取 `64KB`。
 - 默认**只显示有进程在跑的 job**;`finished` 仅当其进程仍在(收尾瞬间)出现。是否额外列出"近期已完成的历史 run"——本期不做,留作后续。
+
+---
+
+## 用法(实现完成后)
+
+启动:`conda run -n ubench1 python -m tools.monitor --port 8800`,浏览器打开 `http://127.0.0.1:8800`(每 4s 自动刷新)。
+单测:`conda run -n ubench1 python -m pytest tests/test_monitor_collector.py -q`
