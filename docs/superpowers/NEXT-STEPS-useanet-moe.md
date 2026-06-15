@@ -30,7 +30,8 @@ conda run -n ubench1 python main.py --gpu 0 --model USEANet --model_id 115 \
 
 **下一步路线(顺序有依赖,别颠倒):**
 
-- **B 先 — 损失工程(唯一没碰的结构杠杆)。** 损失是 USEANet 隔离的(`models/Hybrid/USEANet/usea_loss.py` 的 `structure_loss` + 适配器 `deep_supervision_loss`),**不碰共享 `main.py`**,加 `USEANET_*` 开关默认关即可,比优化器接入风险低。候选:`Dice+CE`(nnU-Net 同款)、`focal-Tversky`(治小病灶类不平衡)。以 **DISC_LR strong-aug 250ep 为新基线**,seed41 先筛,赢家再多 seed。**建议开新会话从 brainstorming 走完整一轮 spec→plan→TDD。**
+- **B 先 — 损失工程(唯一没碰的结构杠杆)。✅ 代码已实现并合并 main**(merge `e9e7fe5`,2026-06-15;spec/plan 在 `docs/superpowers/{specs,plans}/2026-06-15-useanet-loss-engineering*`,memory `[[useanet-loss-engineering]]`)。B1 形态:`usea_loss.py` 的 `structure_loss` 保留边界权重+背景分支+加权 wBCE 分类锚,**只切区域项**:`USEANET_LOSS_REGION=iou`(默认=字节级等价旧实现)/`dice`/`focal_tversky`(α/β/γ 经 `USEANET_FT_*`,默认 0.3/0.7/(4/3),已 clamp 防 NaN)。`tests/test_usea_loss.py` 13 测试,全套 87 passed,默认全关对其他模型零影响。
+  - **剩 GPU 验收(下一步):** 以 **DISC_LR strong-aug 250ep(IoU 0.7085/Dice 0.7923)为基线**,seed41 单点跑 `dice`/`focal_tversky`,超基线 ~0.01 才晋级 3-seed(41/42/43);均值±std 赢才 KEEP,结论写回本文件。命令在复现块基础上加 `USEANET_LOSS_REGION=dice`(或 `focal_tversky`)即可。
 - **A 后 — 调 `backbone_lr_mult`。** 用 B 胜出的损失,再扫 0.05/0.1/0.2 定操作点。**为什么在 B 之后:** lr_mult 是操作点微调、依赖损失函数;先调 A 再换 B 会让 A 作废。
 - **最后 C — 转广度(论文骨架,价值 > BUSI 峰值)。** 跨数据集(bus/BUSBRA/tuscui)复现 DISC_LR + 最佳损失;MoE 消融(专家数/硬软门控/各物理专家贡献/`eff_experts`);nnU-Net/Mamba(VM-UNet)/MedSAM baseline 同 split 重跑。详见下方原始待办 + `docs/superpowers/research/2026-06-14-segmentation-sota-and-nnunet.md`。
 
