@@ -67,3 +67,42 @@ def test_build_optimizer_default_is_plain_sgd(monkeypatch):
     n_model = sum(1 for p in model.parameters() if p.requires_grad)
     n_opt = sum(len(grp["params"]) for grp in opt.param_groups)
     assert n_opt == n_model
+
+
+def test_build_optimizer_disc_lr_two_groups(monkeypatch):
+    monkeypatch.setenv("USEANET_DISC_LR", "1")
+    monkeypatch.setenv("USEANET_BACKBONE_LR_MULT", "0.1")
+    monkeypatch.delenv("USEANET_ADAMW", raising=False)
+    model = _TinyNet()
+    opt, group_base_lrs = tr.build_optimizer(model, 0.01)
+    assert isinstance(opt, optim.SGD)
+    assert len(opt.param_groups) == 2
+    assert group_base_lrs == [pytest.approx(0.001), pytest.approx(0.01)]
+    assert opt.param_groups[0]["lr"] == pytest.approx(0.001)  # backbone group
+    assert opt.param_groups[1]["lr"] == pytest.approx(0.01)   # rest group
+    # union == all trainable params, no overlap, no drop
+    n_model = sum(1 for p in model.parameters() if p.requires_grad)
+    n_opt = sum(len(g["params"]) for g in opt.param_groups)
+    assert n_opt == n_model
+    bb = {id(p) for p in opt.param_groups[0]["params"]}
+    rest = {id(p) for p in opt.param_groups[1]["params"]}
+    assert bb.isdisjoint(rest)
+
+
+def test_build_optimizer_adamw(monkeypatch):
+    monkeypatch.setenv("USEANET_ADAMW", "1")
+    monkeypatch.delenv("USEANET_DISC_LR", raising=False)
+    model = _TinyNet()
+    opt, group_base_lrs = tr.build_optimizer(model, 0.01)
+    assert isinstance(opt, optim.AdamW)
+    assert group_base_lrs == [0.01]
+
+
+def test_build_optimizer_disc_no_backbone_falls_back(monkeypatch):
+    monkeypatch.setenv("USEANET_DISC_LR", "1")
+    monkeypatch.delenv("USEANET_ADAMW", raising=False)
+    model = nn.Linear(4, 1)  # no 'net.backbone.*' params
+    with pytest.warns(UserWarning):
+        opt, group_base_lrs = tr.build_optimizer(model, 0.01)
+    assert len(opt.param_groups) == 1
+    assert group_base_lrs == [0.01]
