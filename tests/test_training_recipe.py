@@ -106,3 +106,29 @@ def test_build_optimizer_disc_no_backbone_falls_back(monkeypatch):
         opt, group_base_lrs = tr.build_optimizer(model, 0.01)
     assert len(opt.param_groups) == 1
     assert group_base_lrs == [0.01]
+
+
+def test_model_ema_update_formula():
+    model = nn.Linear(1, 1, bias=False)
+    with torch.no_grad():
+        model.weight.fill_(1.0)
+    ema = tr.ModelEMA(model, decay=0.9)
+    with torch.no_grad():
+        model.weight.fill_(2.0)
+    ema.update(model)
+    # shadow = 0.9*1.0 + 0.1*2.0 = 1.1
+    assert ema.shadow["weight"].item() == pytest.approx(1.1)
+
+
+def test_model_ema_store_copy_restore_roundtrip():
+    model = nn.Linear(1, 1, bias=False)
+    with torch.no_grad():
+        model.weight.fill_(2.0)
+    ema = tr.ModelEMA(model, decay=0.9)  # shadow == 2.0
+    with torch.no_grad():
+        model.weight.fill_(5.0)          # "real" training weights
+    ema.store(model)                      # back up 5.0
+    ema.copy_to(model)                    # load shadow 2.0 for eval
+    assert model.weight.item() == pytest.approx(2.0)
+    ema.restore(model)                    # restore 5.0
+    assert model.weight.item() == pytest.approx(5.0)

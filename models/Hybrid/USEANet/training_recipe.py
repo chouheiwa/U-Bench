@@ -78,3 +78,38 @@ def build_optimizer(model, base_lr):
     else:
         opt = optim.SGD(groups, lr=base_lr, momentum=0.9, weight_decay=0.0001)
     return opt, group_base_lrs
+
+
+class ModelEMA:
+    """Exponential moving average of model weights. best ckpt is saved from the
+    EMA shadow; checkpoint_final keeps the real training weights (resume-correct)."""
+
+    def __init__(self, model, decay):
+        self.decay = decay
+        self.shadow = {k: v.detach().clone()
+                       for k, v in model.state_dict().items()}
+        self._backup = None
+
+    def update(self, model):
+        with torch.no_grad():
+            for k, v in model.state_dict().items():
+                s = self.shadow[k]
+                if torch.is_floating_point(v):
+                    s.mul_(self.decay).add_(v.detach(), alpha=1.0 - self.decay)
+                else:
+                    s.copy_(v)  # buffers (e.g. counters) track the latest value
+
+    def store(self, model):
+        self._backup = {k: v.detach().clone()
+                        for k, v in model.state_dict().items()}
+
+    def copy_to(self, model):
+        model.load_state_dict(self.shadow, strict=True)
+
+    def restore(self, model):
+        if self._backup is not None:
+            model.load_state_dict(self._backup, strict=True)
+            self._backup = None
+
+    def state_dict(self):
+        return self.shadow
