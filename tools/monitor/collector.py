@@ -97,6 +97,30 @@ def parse_processes(ps_output: str) -> list:
     return procs
 
 
+def parse_gpus(nvidia_smi_csv: str) -> list:
+    """解析 nvidia-smi CSV(noheader,nounits)为每卡状态;解析不了的行跳过。"""
+    gpus = []
+    for line in nvidia_smi_csv.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        cells = [c.strip() for c in line.split(",")]
+        if len(cells) < 6:
+            continue
+        try:
+            gpus.append({
+                "index": int(cells[0]),
+                "name": cells[1],
+                "util": int(cells[2]),
+                "mem_used": int(cells[3]),
+                "mem_total": int(cells[4]),
+                "temp": int(cells[5]),
+            })
+        except ValueError:
+            continue
+    return gpus
+
+
 def list_jobs(output_root: str = "./output", runner=None, now=None) -> dict:
     """Placeholder — full implementation in Task 6."""
     raise NotImplementedError("list_jobs not yet implemented")

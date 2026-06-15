@@ -91,3 +91,26 @@ def test_parse_processes_fields():
     assert "main.py" in a["cmdline"]
     assert a["args"]["model"] == "USEANet"  # 已内联 parse_cmdline_args
     assert a["args"]["gpu"] == 1
+
+
+from tools.monitor.collector import parse_gpus
+
+NVIDIA_CSV = """0, NVIDIA GeForce RTX 2080 Ti, 95, 8000, 11264, 72
+1, NVIDIA GeForce RTX 2080 Ti, 0, 12, 11264, 41
+"""
+
+
+def test_parse_gpus():
+    gpus = parse_gpus(NVIDIA_CSV)
+    assert len(gpus) == 2
+    g0 = gpus[0]
+    assert g0["index"] == 0
+    assert g0["name"] == "NVIDIA GeForce RTX 2080 Ti"
+    assert g0["util"] == 95
+    assert g0["mem_used"] == 8000
+    assert g0["mem_total"] == 11264
+    assert g0["temp"] == 72
+
+
+def test_parse_gpus_empty_returns_empty_list():
+    assert parse_gpus("") == []
