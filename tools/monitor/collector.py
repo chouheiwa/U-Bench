@@ -4,6 +4,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import time
+from datetime import datetime
 
 _EPOCH_RE = re.compile(r"epoch \[(\d+)/(\d+)\]")
 _VAL_IOU_RE = re.compile(r"val_iou ([\d.]+)")
@@ -175,6 +178,58 @@ def classify_status(progress: dict, log_mtime, now: float,
     return "running"
 
 
-def list_jobs(output_root: str = "./output", runner=None, now=None) -> dict:
-    """Placeholder — full implementation in Task 6."""
-    raise NotImplementedError("list_jobs not yet implemented")
+_PS_ARGS = ["ps", "-eo", "pid=,etimes=,pcpu=,pmem=,args="]
+_NVSMI_ARGS = [
+    "nvidia-smi",
+    "--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+    "--format=csv,noheader,nounits",
+]
+
+
+def run_cmd(args: list, timeout: float = 5.0) -> str:
+    """运行命令,返回 stdout;任何失败(找不到命令/超时/非零)返回空串。"""
+    try:
+        res = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return res.stdout if res.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def list_jobs(output_root: str = "./output", runner=run_cmd, now=None) -> dict:
+    """组装看板数据:gpus + 当前训练 jobs。runner/now 可注入以便测试。"""
+    if now is None:
+        now = time.time()
+    gpus = parse_gpus(runner(_NVSMI_ARGS))
+    procs = parse_processes(runner(_PS_ARGS))
+
+    jobs = []
+    for p in procs:
+        a = p["args"]
+        info = read_run_dir(output_root, a["model"], a["dataset_name"], a["exp_name"])
+        cfg = info["config"]
+        status = classify_status(info, info["log_mtime"], now, has_log=info["has_log"])
+        jobs.append({
+            "pid": p["pid"],
+            "gpu": a["gpu"],
+            "exp_name": a["exp_name"],
+            "model": a["model"],
+            "dataset": a["dataset_name"],
+            "uptime_sec": p["uptime_sec"],
+            "cpu": p["cpu"],
+            "mem": p["mem"],
+            "epoch": info["epoch"],
+            "total_epochs": info["total_epochs"] or a["max_epochs"],
+            "val_iou": info["val_iou"],
+            "best_iou": info["best_iou"],
+            "best_epoch": info["best_epoch"],
+            "status": status,
+            "seed": a["seed"] if a["seed"] is not None else cfg.get("seed"),
+            "base_lr": a["base_lr"] if a["base_lr"] is not None else cfg.get("base_lr"),
+            "log_mtime": (datetime.fromtimestamp(info["log_mtime"]).isoformat()
+                          if info["log_mtime"] else None),
+        })
+    return {
+        "generated_at": datetime.fromtimestamp(now).isoformat(),
+        "gpus": gpus,
+        "jobs": jobs,
+    }

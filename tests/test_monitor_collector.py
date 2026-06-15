@@ -161,3 +161,53 @@ def test_classify_status():
     # running
     assert classify_status({"completed": False, "epoch": 5}, now - 10, now,
                            has_log=True) == "running"
+
+
+import time
+from datetime import datetime
+
+from tools.monitor.collector import list_jobs
+
+
+def test_list_jobs_assembles_gpus_and_jobs(tmp_path):
+    root = _make_run(tmp_path, "USEANet", "busi", "run_a", RUNNING_LOG_TAIL,
+                     config={"seed": 41, "base_lr": 0.01})
+
+    def fake_runner(args):
+        if args[0] == "ps":
+            return ("  31542 3600 98.5 2.1 python main.py --model USEANet "
+                    "--gpu 1 --dataset_name busi --exp_name run_a --max_epochs 100\n")
+        if args[0] == "nvidia-smi":
+            return NVIDIA_CSV
+        return ""
+
+    out = list_jobs(output_root=root, runner=fake_runner, now=time.time())
+    assert len(out["gpus"]) == 2
+    assert len(out["jobs"]) == 1
+    job = out["jobs"][0]
+    assert job["pid"] == 31542
+    assert job["gpu"] == 1
+    assert job["exp_name"] == "run_a"
+    assert job["model"] == "USEANet"
+    assert job["dataset"] == "busi"
+    assert job["epoch"] == 94
+    assert job["total_epochs"] == 100
+    assert abs(job["val_iou"] - 0.6163) < 1e-4
+    assert job["seed"] == 41
+    assert job["status"] == "running"
+    # generated_at 是可解析的 ISO 时间串
+    datetime.fromisoformat(out["generated_at"])
+
+
+def test_list_jobs_nvidia_smi_failure_degrades(tmp_path):
+    root = _make_run(tmp_path, "USEANet", "busi", "run_a", RUNNING_LOG_TAIL)
+
+    def fake_runner(args):
+        if args[0] == "ps":
+            return ("  31542 3600 98.5 2.1 python main.py --model USEANet "
+                    "--gpu 0 --dataset_name busi --exp_name run_a\n")
+        return ""  # nvidia-smi 失败 → 空
+
+    out = list_jobs(output_root=root, runner=fake_runner, now=time.time())
+    assert out["gpus"] == []
+    assert len(out["jobs"]) == 1  # 进程仍正常列出
