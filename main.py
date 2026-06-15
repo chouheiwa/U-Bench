@@ -266,7 +266,20 @@ def train(args,exp_save_dir, writer, logger, model):
     logger.info(f"train file dir:{args.train_file_dir} val file dir:{args.val_file_dir}")
     logger.info(f"{len(trainloader)} iterations per epoch")
     
-    optimizer = optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=0.0001)
+    # USEANet-only optional training recipe (discriminative LR / warmup / EMA /
+    # AdamW), all env-gated and default-off. Other models keep the exact SGD in
+    # the else branch and never import the USEANet recipe module.
+    if args.model == 'USEANet':
+        from models.Hybrid.USEANet import training_recipe as _recipe
+        optimizer, _group_base_lrs = _recipe.build_optimizer(model, base_lr)
+        _warmup_iters = _recipe.warmup_iters(len(trainloader))
+        _ema = (_recipe.ModelEMA(model, float(os.environ.get("USEANET_EMA_DECAY", "0.999")))
+                if os.environ.get("USEANET_EMA") == "1" else None)
+    else:
+        optimizer = optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=0.0001)
+        _group_base_lrs = [base_lr]
+        _warmup_iters = 0
+        _ema = None
     criterion = losses.__dict__['BCEDiceLoss']().to(device)
 
 
@@ -341,15 +354,24 @@ def train(args,exp_save_dir, writer, logger, model):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            if _ema is not None:
+                _ema.update(model)
 
-            lr_ = base_lr * (1.0 - iter_num / max_iterations) ** 0.9
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr_
+            if args.model == 'USEANet':
+                for param_group, _gbase in zip(optimizer.param_groups, _group_base_lrs):
+                    param_group['lr'] = _recipe.lr_at(_gbase, iter_num, max_iterations, _warmup_iters)
+            else:
+                lr_ = base_lr * (1.0 - iter_num / max_iterations) ** 0.9
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr_
 
             iter_num += 1
             avg_meters['loss'].update(loss.item(), volume_batch.size(0))
             avg_meters['iou'].update(iou, volume_batch.size(0))
 
+        if _ema is not None:
+            _ema.store(model)
+            _ema.copy_to(model)
         model.eval()
         with torch.no_grad():
             for i_batch, sampled_batch in enumerate(valloader):
@@ -424,6 +446,9 @@ def train(args,exp_save_dir, writer, logger, model):
             train_metric_dict["last_PC"] = avg_meters['PC'].avg
             train_metric_dict["last_F1"] = avg_meters['F1'].avg
             train_metric_dict["last_ACC"] = avg_meters['ACC'].avg
+
+        if _ema is not None:
+            _ema.restore(model)
 
         checkpoint_path = os.path.join(exp_save_dir, f'checkpoint_final.pth')
 
