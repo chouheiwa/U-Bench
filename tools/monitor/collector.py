@@ -1,6 +1,8 @@
 """只读训练进程看板的采集 + 解析逻辑(无 HTTP,可单测)。"""
 from __future__ import annotations
 
+import json
+import os
 import re
 
 _EPOCH_RE = re.compile(r"epoch \[(\d+)/(\d+)\]")
@@ -119,6 +121,58 @@ def parse_gpus(nvidia_smi_csv: str) -> list:
         except ValueError:
             continue
     return gpus
+
+
+DEFAULT_STALE_SEC = 180
+TAIL_BYTES = 64 * 1024
+
+
+def _tail(path: str, nbytes: int = TAIL_BYTES) -> str:
+    with open(path, "rb") as f:
+        try:
+            f.seek(-nbytes, os.SEEK_END)
+        except OSError:
+            f.seek(0)
+        return f.read().decode("utf-8", errors="replace")
+
+
+def read_run_dir(output_root: str, model, dataset, exp_name) -> dict:
+    """定位 output_root/<model>/<dataset>/<exp_name>/,读 config.json + tail training.log。"""
+    info = {"config": {}, "has_log": False, "log_mtime": None,
+            "epoch": None, "total_epochs": None, "val_iou": None,
+            "best_iou": None, "best_epoch": None, "completed": False}
+    if not (model and dataset and exp_name):
+        return info
+    d = os.path.join(output_root, str(model), str(dataset), str(exp_name))
+    cfg_path = os.path.join(d, "config.json")
+    if os.path.isfile(cfg_path):
+        try:
+            with open(cfg_path) as f:
+                info["config"] = json.load(f)
+        except (OSError, ValueError):
+            info["config"] = {}
+    log_path = os.path.join(d, "training.log")
+    if os.path.isfile(log_path):
+        info["has_log"] = True
+        try:
+            info["log_mtime"] = os.path.getmtime(log_path)
+            info.update(parse_training_log(_tail(log_path)))
+        except OSError:
+            pass
+    return info
+
+
+def classify_status(progress: dict, log_mtime, now: float,
+                    has_log: bool = True, stale_sec: int = DEFAULT_STALE_SEC) -> str:
+    if progress.get("completed"):
+        return "finished"
+    if not has_log:
+        return "no_log"
+    if progress.get("epoch") is None:
+        return "starting"
+    if log_mtime is not None and (now - log_mtime) > stale_sec:
+        return "stale"
+    return "running"
 
 
 def list_jobs(output_root: str = "./output", runner=None, now=None) -> dict:

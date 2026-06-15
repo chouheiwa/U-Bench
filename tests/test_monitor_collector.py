@@ -114,3 +114,50 @@ def test_parse_gpus():
 
 def test_parse_gpus_empty_returns_empty_list():
     assert parse_gpus("") == []
+
+
+import json
+
+from tools.monitor.collector import read_run_dir, classify_status
+
+
+def _make_run(tmp_path, model, dataset, exp_name, log_text, config=None):
+    d = tmp_path / model / dataset / exp_name
+    d.mkdir(parents=True)
+    (d / "config.json").write_text(json.dumps(config or {"seed": 41, "base_lr": 0.01}))
+    (d / "training.log").write_text(log_text)
+    return str(tmp_path)
+
+
+def test_read_run_dir_joins_config_and_log(tmp_path):
+    root = _make_run(tmp_path, "USEANet", "busi", "run_a", RUNNING_LOG_TAIL)
+    info = read_run_dir(root, "USEANet", "busi", "run_a")
+    assert info["epoch"] == 94
+    assert info["config"]["seed"] == 41
+    assert info["log_mtime"] is not None
+    assert info["has_log"] is True
+
+
+def test_read_run_dir_missing_dir(tmp_path):
+    info = read_run_dir(str(tmp_path), "USEANet", "busi", "nope")
+    assert info["has_log"] is False
+    assert info["epoch"] is None
+    assert info["config"] == {}
+
+
+def test_classify_status():
+    now = 1_000_000.0
+    # completed
+    assert classify_status({"completed": True, "epoch": 99}, now - 10, now) == "finished"
+    # no log
+    assert classify_status({"completed": False, "epoch": None}, None, now,
+                           has_log=False) == "no_log"
+    # log exists but no epoch yet
+    assert classify_status({"completed": False, "epoch": None}, now - 1, now,
+                           has_log=True) == "starting"
+    # stale (mtime old)
+    assert classify_status({"completed": False, "epoch": 5}, now - 999, now,
+                           has_log=True, stale_sec=180) == "stale"
+    # running
+    assert classify_status({"completed": False, "epoch": 5}, now - 10, now,
+                           has_log=True) == "running"
