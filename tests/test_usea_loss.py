@@ -103,3 +103,13 @@ def test_ft_params_defaults(monkeypatch):
     a, b, g = L._ft_params()
     assert (a, b) == (0.3, 0.7)
     assert g == pytest.approx(4.0 / 3.0)
+
+
+def test_invalid_region_falls_back_to_iou(monkeypatch, recwarn):
+    pred, pred_bg, mask_fg, mask_bg = _mk()
+    monkeypatch.delenv("USEANET_LOSS_REGION", raising=False)
+    ref = L.structure_loss(pred.detach().requires_grad_(True), pred_bg, mask_fg, mask_bg, 1)
+    monkeypatch.setenv("USEANET_LOSS_REGION", "bogus")
+    got = L.structure_loss(pred.detach().requires_grad_(True), pred_bg, mask_fg, mask_bg, 1)
+    assert torch.allclose(got, ref, rtol=0, atol=0)
+    assert any("falling back to 'iou'" in str(w.message) for w in recwarn.list)
