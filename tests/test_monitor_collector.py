@@ -35,3 +35,32 @@ def test_parse_empty_log():
     assert out["total_epochs"] is None
     assert out["val_iou"] is None
     assert out["completed"] is False
+
+
+from tools.monitor.collector import parse_cmdline_args
+
+
+def test_parse_cmdline_args_full():
+    cmd = ("python main.py --gpu 1 --model USEANet --model_id 115 "
+           "--base_dir hf_data/data/busi --dataset_name busi --exp_name moe_busi_e250 "
+           "--max_epochs 250 --seed 42 --base_lr 0.01")
+    out = parse_cmdline_args(cmd)
+    assert out["model"] == "USEANet"
+    assert out["dataset_name"] == "busi"
+    assert out["exp_name"] == "moe_busi_e250"
+    assert out["gpu"] == 1
+    assert out["max_epochs"] == 250
+    assert out["seed"] == 42
+    assert abs(out["base_lr"] - 0.01) < 1e-9
+
+
+def test_parse_cmdline_args_gpu_list_takes_first():
+    out = parse_cmdline_args("python main.py --gpu 0,1 --model USEANet")
+    assert out["gpu"] == 0
+
+
+def test_parse_cmdline_args_missing_are_none():
+    out = parse_cmdline_args("python main.py")
+    assert out["model"] is None
+    assert out["gpu"] is None
+    assert out["exp_name"] is None

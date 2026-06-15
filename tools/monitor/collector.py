@@ -37,6 +37,35 @@ def parse_training_log(text: str) -> dict:
     }
 
 
+def _flag(cmdline: str, name: str):
+    m = re.search(rf"--{name}\s+(\S+)", cmdline)
+    return m.group(1) if m else None
+
+
+def parse_cmdline_args(cmdline: str) -> dict:
+    """从进程命令行解析关心的训练参数;缺失为 None。"""
+    def as_int(v):
+        return int(v) if v is not None else None
+
+    gpu_raw = _flag(cmdline, "gpu")
+    gpu = None
+    if gpu_raw is not None:
+        try:
+            gpu = int(gpu_raw.split(",")[0])
+        except ValueError:
+            gpu = None
+    lr_raw = _flag(cmdline, "base_lr")
+    return {
+        "model": _flag(cmdline, "model"),
+        "dataset_name": _flag(cmdline, "dataset_name"),
+        "exp_name": _flag(cmdline, "exp_name"),
+        "gpu": gpu,
+        "max_epochs": as_int(_flag(cmdline, "max_epochs")),
+        "seed": as_int(_flag(cmdline, "seed")),
+        "base_lr": float(lr_raw) if lr_raw is not None else None,
+    }
+
+
 def list_jobs(output_root: str = "./output", runner=None, now=None) -> dict:
     """Placeholder — full implementation in Task 6."""
     raise NotImplementedError("list_jobs not yet implemented")
