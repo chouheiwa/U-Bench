@@ -66,3 +66,40 @@ def test_dice_path_finite_and_backprops(monkeypatch):
     assert torch.isfinite(loss)
     loss.backward()
     assert pred.grad is not None and torch.all(torch.isfinite(pred.grad))
+
+
+def test_focal_tversky_finite_and_backprops(monkeypatch):
+    monkeypatch.setenv("USEANET_LOSS_REGION", "focal_tversky")
+    pred, pred_bg, mask_fg, mask_bg = _mk()
+    loss = L.structure_loss(pred, pred_bg, mask_fg, mask_bg, 1)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert pred.grad is not None and torch.all(torch.isfinite(pred.grad))
+
+
+def test_focal_tversky_beta_penalises_false_negatives():
+    # 构造一个"漏检(FN 高、FP 低)"样本:有前景但预测几乎全背景。
+    mask = torch.zeros(1, 1, 8, 8)
+    mask[:, :, 2:6, 2:6] = 1.0
+    weit = torch.ones_like(mask)
+    p = torch.full_like(mask, 0.1)  # 欠预测 -> FN 大、FP 小
+    gamma = 4.0 / 3.0
+    high_fn_penalty = L._region_focal_tversky(p, mask, weit, alpha=0.3, beta=0.7, gamma=gamma)
+    low_fn_penalty = L._region_focal_tversky(p, mask, weit, alpha=0.7, beta=0.3, gamma=gamma)
+    # β>α(更狠惩罚漏检)应给出更大的损失
+    assert (high_fn_penalty > low_fn_penalty).all()
+
+
+def test_ft_params_read_from_env(monkeypatch):
+    monkeypatch.setenv("USEANET_FT_ALPHA", "0.25")
+    monkeypatch.setenv("USEANET_FT_BETA", "0.75")
+    monkeypatch.setenv("USEANET_FT_GAMMA", "2.0")
+    assert L._ft_params() == (0.25, 0.75, 2.0)
+
+
+def test_ft_params_defaults(monkeypatch):
+    for k in ("USEANET_FT_ALPHA", "USEANET_FT_BETA", "USEANET_FT_GAMMA"):
+        monkeypatch.delenv(k, raising=False)
+    a, b, g = L._ft_params()
+    assert (a, b) == (0.3, 0.7)
+    assert g == pytest.approx(4.0 / 3.0)
