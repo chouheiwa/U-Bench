@@ -113,3 +113,18 @@ def test_invalid_region_falls_back_to_iou(monkeypatch, recwarn):
     got = L.structure_loss(pred.detach().requires_grad_(True), pred_bg, mask_fg, mask_bg, 1)
     assert torch.allclose(got, ref, rtol=0, atol=0)
     assert any("falling back to 'iou'" in str(w.message) for w in recwarn.list)
+
+
+@pytest.mark.parametrize("region", ["iou", "dice", "focal_tversky"])
+def test_end_to_end_via_deep_supervision(monkeypatch, region):
+    monkeypatch.setenv("USEANET_LOSS_REGION", region)
+    from models.Hybrid.USEANet import USEANet
+    torch.manual_seed(0)
+    model = USEANet(input_channel=3, num_classes=1)
+    x = torch.randn(2, 3, 64, 64)
+    label = torch.zeros(2, 1, 64, 64)
+    label[:, :, 16:48, 16:48] = 1.0
+    outputs = model(x)
+    loss = model.deep_supervision_loss(outputs, label)
+    assert loss.dim() == 0 and torch.isfinite(loss)
+    loss.backward()  # 与 MoE 辅助 + 多尺度 + 背景分支组合后仍可反传
