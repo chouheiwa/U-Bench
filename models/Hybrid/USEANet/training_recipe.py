@@ -23,3 +23,9 @@ def lr_at(group_base_lr, iter_num, max_iterations, warmup_iters):
         return group_base_lr * (iter_num + 1) / warmup_iters
     denom = max_iterations - warmup_iters
     return group_base_lr * (1.0 - (iter_num - warmup_iters) / denom) ** 0.9
+
+
+def warmup_iters(iters_per_epoch):
+    """USEANET_WARMUP_EPOCHS (default 0) * iters_per_epoch."""
+    epochs = int(os.environ.get("USEANET_WARMUP_EPOCHS", "0"))
+    return epochs * iters_per_epoch

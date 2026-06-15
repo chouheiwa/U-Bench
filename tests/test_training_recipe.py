@@ -27,3 +27,13 @@ def test_lr_at_warmup_is_linear_then_poly():
         cur = tr.lr_at(base, i, n, w)
         assert cur <= prev + 1e-12
         prev = cur
+
+
+def test_warmup_iters_default_zero(monkeypatch):
+    monkeypatch.delenv("USEANET_WARMUP_EPOCHS", raising=False)
+    assert tr.warmup_iters(125) == 0
+
+
+def test_warmup_iters_reads_env(monkeypatch):
+    monkeypatch.setenv("USEANET_WARMUP_EPOCHS", "5")
+    assert tr.warmup_iters(125) == 5 * 125
