@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>U-Bench 训练看板</title>
+<style>
+  body { font-family: -apple-system, Menlo, monospace; background:#0f1115; color:#e6e6e6; margin:0; padding:16px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 12px; }
+  .muted { color:#8a8f98; font-size:12px; }
+  .bar { background:#262b33; border-radius:4px; height:8px; overflow:hidden; }
+  .bar > span { display:block; height:100%; background:#3b82f6; }
+  .grid { display:grid; gap:10px; }
+  .gpus { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); margin-bottom:18px; }
+  .card { background:#171a21; border:1px solid #262b33; border-radius:8px; padding:10px 12px; }
+  .job { display:grid; grid-template-columns:1.6fr 1fr 1.4fr 1fr; gap:10px; align-items:center; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:10px; }
+  .running { background:#14532d; color:#7ee2a8; }
+  .starting { background:#5a4a14; color:#f5d779; }
+  .finished { background:#2a2f37; color:#a8b0bd; }
+  .stale, .no_log { background:#5a1d1d; color:#f3a2a2; }
+  .banner { background:#5a1d1d; color:#f3a2a2; padding:6px 10px; border-radius:6px; margin-bottom:10px; display:none; }
+  .big { font-size:15px; font-weight:600; }
+</style>
+</head>
+<body>
+  <h1>U-Bench 训练看板 <span class="muted" id="ts"></span></h1>
+  <div class="banner" id="banner">连接丢失,显示的是上次数据…</div>
+  <div class="grid gpus" id="gpus"></div>
+  <div class="grid" id="jobs"></div>
+
+<script>
+function pct(used, total){ return total ? Math.round(100*used/total) : 0; }
+function fmtDur(s){ if(s==null) return '-'; const h=Math.floor(s/3600), m=Math.floor((s%3600)/60); return h>0?`${h}h${m}m`:`${m}m`; }
+function num(v, d){ return (v==null)?'-':Number(v).toFixed(d); }
+
+function renderGpus(gpus){
+  document.getElementById('gpus').innerHTML = gpus.map(g => `
+    <div class="card">
+      <div><b>GPU ${g.index}</b> <span class="muted">${g.name}</span></div>
+      <div class="muted">util ${g.util}% · ${g.temp}°C</div>
+      <div class="bar"><span style="width:${g.util}%"></span></div>
+      <div class="muted">显存 ${g.mem_used} / ${g.mem_total} MB (${pct(g.mem_used,g.mem_total)}%)</div>
+      <div class="bar"><span style="width:${pct(g.mem_used,g.mem_total)}%"></span></div>
+    </div>`).join('') || '<div class="muted">无 GPU 数据(nvidia-smi 不可用)</div>';
+}
+
+function renderJobs(jobs){
+  if(!jobs.length){ document.getElementById('jobs').innerHTML = '<div class="muted">当前没有正在跑的训练进程。</div>'; return; }
+  document.getElementById('jobs').innerHTML = jobs.map(j => {
+    const ep = (j.epoch!=null && j.total_epochs) ? `${j.epoch}/${j.total_epochs}` : '-';
+    const p = (j.epoch!=null && j.total_epochs) ? Math.round(100*j.epoch/j.total_epochs) : 0;
+    return `<div class="card job">
+      <div>
+        <div class="big">${j.exp_name ?? '(no exp)'}</div>
+        <div class="muted">${j.model ?? '?'} · ${j.dataset ?? '?'} · GPU ${j.gpu ?? '?'} · pid ${j.pid} · ${fmtDur(j.uptime_sec)}</div>
+      </div>
+      <div><span class="pill ${j.status}">${j.status}</span></div>
+      <div>
+        <div class="muted">epoch ${ep}</div>
+        <div class="bar"><span style="width:${p}%"></span></div>
+      </div>
+      <div class="muted">
+        val_IoU <b>${num(j.val_iou,4)}</b><br>
+        best <b>${num(j.best_iou,4)}</b>${j.best_epoch!=null?` @${j.best_epoch}`:''}<br>
+        seed ${j.seed ?? '-'} · lr ${j.base_lr ?? '-'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function tick(){
+  try {
+    const r = await fetch('/api/jobs');
+    const d = await r.json();
+    document.getElementById('banner').style.display = 'none';
+    document.getElementById('ts').textContent = d.generated_at ? '· ' + d.generated_at.replace('T',' ').slice(0,19) : '';
+    renderGpus(d.gpus || []);
+    renderJobs(d.jobs || []);
+  } catch(e){
+    document.getElementById('banner').style.display = 'block';
+  }
+}
+tick();
+setInterval(tick, 4000);
+</script>
+</body>
+</html>
