@@ -31,7 +31,8 @@ conda run -n ubench1 python main.py --gpu 0 --model USEANet --model_id 115 \
 **下一步路线(顺序有依赖,别颠倒):**
 
 - **B 先 — 损失工程(唯一没碰的结构杠杆)。✅ 代码已实现并合并 main**(merge `e9e7fe5`,2026-06-15;spec/plan 在 `docs/superpowers/{specs,plans}/2026-06-15-useanet-loss-engineering*`,memory `[[useanet-loss-engineering]]`)。B1 形态:`usea_loss.py` 的 `structure_loss` 保留边界权重+背景分支+加权 wBCE 分类锚,**只切区域项**:`USEANET_LOSS_REGION=iou`(默认=字节级等价旧实现)/`dice`/`focal_tversky`(α/β/γ 经 `USEANET_FT_*`,默认 0.3/0.7/(4/3),已 clamp 防 NaN)。`tests/test_usea_loss.py` 13 测试,全套 87 passed,默认全关对其他模型零影响。
-  - **剩 GPU 验收(下一步):** 以 **DISC_LR strong-aug 250ep(IoU 0.7085/Dice 0.7923)为基线**,seed41 单点跑 `dice`/`focal_tversky`,超基线 ~0.01 才晋级 3-seed(41/42/43);均值±std 赢才 KEEP,结论写回本文件。命令在复现块基础上加 `USEANET_LOSS_REGION=dice`(或 `focal_tversky`)即可。
+  - **GPU 验收已完成 → DROP 两者,KEEP `iou` 默认。** seed41 单点筛(DISC_LR+strong-aug+250ep,基线 IoU 0.7085/Dice 0.7923):`dice` = IoU **0.7011**/Dice 0.7840(@ep211);`focal_tversky` = IoU **0.6995**/Dice 0.7899(@ep104,默认 α/β/γ=0.3/0.7/(4/3))。两者 IoU 均低于基线(−0.007 / −0.009),**未晋级 3-seed**。结论:B1 区域项替换在 BUSI 上无增益,保留 `iou` 默认。损失工程 B 路线到此收尾,**直接进 A 路线**(用 `iou` 损失扫 `backbone_lr_mult` 0.05/0.1/0.2)。日志在 gitignored `output/_sweep/` + `output/USEANet/busi/disc_{dice,ft}_busi/training.log`。
+  - **⚠️ 既有 bug(本次发现,与损失改动无关):`main.py --gpu 1` 会卡死**——进程 CPU 空转、永不分配显存(`--gpu 0` 正常;GPU 1 硬件本身 OK,torch 直接 `CUDA_VISIBLE_DEVICES=1` 可正常分配)。**多卡并行跑请用 `CUDA_VISIBLE_DEVICES=N python main.py ... --gpu 0`**(钉物理卡 N、走能跑通的 `--gpu 0` 路径),别用 `--gpu N>0`。根因待查(疑在 main.py 设备选择/初始化)。
 - **A 后 — 调 `backbone_lr_mult`。** 用 B 胜出的损失,再扫 0.05/0.1/0.2 定操作点。**为什么在 B 之后:** lr_mult 是操作点微调、依赖损失函数;先调 A 再换 B 会让 A 作废。
 - **最后 C — 转广度(论文骨架,价值 > BUSI 峰值)。** 跨数据集(bus/BUSBRA/tuscui)复现 DISC_LR + 最佳损失;MoE 消融(专家数/硬软门控/各物理专家贡献/`eff_experts`);nnU-Net/Mamba(VM-UNet)/MedSAM baseline 同 split 重跑。详见下方原始待办 + `docs/superpowers/research/2026-06-14-segmentation-sota-and-nnunet.md`。
 
