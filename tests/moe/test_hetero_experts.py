@@ -80,3 +80,18 @@ def test_hetero_prefilter_gets_gradient():
     out.sum().backward()
     g = e.prefilters[0].weight.grad
     assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0
+
+
+def test_physics_moe_end_to_end_hetero(monkeypatch):
+    monkeypatch.setenv("USEANET_HETERO_EXPERTS", "1")
+    from models.Hybrid.USEANet.moe.physics_moe import PhysicsMoE
+    from models.Hybrid.USEANet.moe.experts import _HeteroExpert
+    moe = PhysicsMoE(in_channel=160, out_channel=32)
+    assert all(isinstance(e, _HeteroExpert) for e in moe.experts)
+    x = torch.rand(2, 160, 16, 16)
+    out = moe(x)
+    assert out.shape == (2, 32, 16, 16)
+    loss = moe.aux_loss(route_weight=0.1, lb_weight=0.1)
+    assert torch.isfinite(loss)
+    eff = moe.eff_experts()
+    assert 1.0 <= eff <= len(EXPERT_NAMES) + 1e-4
