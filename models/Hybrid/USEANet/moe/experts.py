@@ -96,11 +96,15 @@ class _HeteroExpert(nn.Module):
     """Physics-anchored heterogeneous expert: 1-2 learnable prefilter branches (summed),
     optional channel-SE gate, then a Dropout-regularised lightweight head."""
 
-    def __init__(self, in_channel, out_channel, prefilters, channel=32, use_se=False):
+    def __init__(self, in_channel, out_channel, prefilters, channel=32, use_se=False,
+                 freeze=False, dropout_p=_DROPOUT_P):
         super().__init__()
         self.prefilters = nn.ModuleList(
             _LearnablePrefilter(k, d) for (k, d) in prefilters
         )
+        if freeze:  # anchor prefilter kernels (no drift) — overfit-reduction knob
+            for pf in self.prefilters:
+                pf.weight.requires_grad_(False)
         self.use_se = use_se
         if use_se:
             hidden = max(8, in_channel // _SE_REDUCTION)
@@ -114,7 +118,7 @@ class _HeteroExpert(nn.Module):
             nn.BatchNorm2d(channel),
             nn.ReLU(inplace=True),
             nn.Conv2d(channel, channel, 3, padding=1, groups=channel, bias=False),
-            nn.Dropout2d(_DROPOUT_P),
+            nn.Dropout2d(dropout_p),
             nn.Conv2d(channel, out_channel, 1, bias=False),
         )
 
@@ -129,13 +133,23 @@ class _HeteroExpert(nn.Module):
 
 def _build_hetero_experts(in_channel, out_channel, channel=32):
     # `channel` is accepted for build_experts() signature parity; each expert's
-    # width comes from _hetero_kernels(), so this arg is intentionally unused here.
+    # width comes from _hetero_kernels() unless overridden by an env knob below.
+    # Overfit-reduction knobs (ablation, all default-off / no-override):
+    #   USEANET_HETERO_CHANNEL=N  -> force every expert head width to N (de-capacity)
+    #   USEANET_HETERO_NO_SE=1    -> drop the contrast SE branch
+    #   USEANET_HETERO_FREEZE=1   -> freeze prefilter kernels (anchored, no drift)
+    #   USEANET_HETERO_DROPOUT=p  -> override head Dropout2d rate
+    ch_override = os.environ.get("USEANET_HETERO_CHANNEL")
+    no_se = os.environ.get("USEANET_HETERO_NO_SE") == "1"
+    freeze = os.environ.get("USEANET_HETERO_FREEZE") == "1"
+    dropout_p = float(os.environ.get("USEANET_HETERO_DROPOUT", _DROPOUT_P))
     specs = _hetero_kernels()
     return nn.ModuleList(
         _HeteroExpert(in_channel, out_channel,
                       prefilters=specs[name]["prefilters"],
-                      channel=specs[name]["channel"],
-                      use_se=specs[name]["use_se"])
+                      channel=int(ch_override) if ch_override else specs[name]["channel"],
+                      use_se=specs[name]["use_se"] and not no_se,
+                      freeze=freeze, dropout_p=dropout_p)
         for name in EXPERT_NAMES
     )
 

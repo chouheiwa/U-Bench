@@ -110,3 +110,25 @@ def test_physics_moe_end_to_end_hetero(monkeypatch):
     assert torch.isfinite(loss)
     eff = moe.eff_experts()
     assert 1.0 <= eff <= len(EXPERT_NAMES) + 1e-4
+
+
+def test_hetero_env_knobs(monkeypatch):
+    """Overfit-reduction env knobs: channel override, no-SE, freeze, dropout."""
+    from models.Hybrid.USEANet.moe.experts import _build_hetero_experts
+    idx = {name: i for i, name in enumerate(EXPERT_NAMES)}
+    monkeypatch.setenv("USEANET_HETERO_CHANNEL", "32")
+    monkeypatch.setenv("USEANET_HETERO_NO_SE", "1")
+    monkeypatch.setenv("USEANET_HETERO_FREEZE", "1")
+    monkeypatch.setenv("USEANET_HETERO_DROPOUT", "0.3")
+    experts = _build_hetero_experts(256, 32, 32)
+    # channel override -> contrast head first conv out = 32 (was 48)
+    assert experts[idx["contrast"]].head[0].out_channels == 32
+    # no-SE -> contrast loses its se branch
+    assert not hasattr(experts[idx["contrast"]], "se")
+    # freeze -> prefilter kernels not trainable
+    assert experts[idx["shadow"]].prefilters[0].weight.requires_grad is False
+    # dropout override -> Dropout2d p = 0.3
+    drops = [m for m in experts[idx["edge"]].head if isinstance(m, __import__("torch").nn.Dropout2d)]
+    assert drops and abs(drops[0].p - 0.3) < 1e-9
+    # forward still contract-correct
+    assert experts[idx["contrast"]](__import__("torch").rand(2, 256, 8, 8)).shape == (2, 32, 8, 8)
