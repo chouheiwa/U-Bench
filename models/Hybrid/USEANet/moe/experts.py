@@ -4,6 +4,8 @@ Each expert = a fixed (non-learnable) physical pre-filter + a small learnable
 1x1->depthwise->1x1 head (channel anchored, few params). Fixed kernels keep
 experts physically specialised and resist overfitting on small data.
 """
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,6 +34,27 @@ class _AnchoredExpert(nn.Module):
 
     def forward(self, x):
         return self.head(self._prefilter(x))
+
+
+class _LearnablePrefilter(nn.Module):
+    """Depthwise prefilter shared across channels, physics-initialised but learnable.
+
+    A single [kh,kw] kernel is broadcast over all input channels (groups=C) so the
+    physical prior is anchored at init yet can drift during training. Supports
+    anisotropic (e.g. 7x1) and dilated kernels for direction/scale-specialised experts.
+    """
+
+    def __init__(self, kernel, dilation=1):
+        super().__init__()
+        kh, kw = kernel.shape
+        self.kh, self.kw, self.d = kh, kw, dilation
+        self.weight = nn.Parameter(kernel.view(1, 1, kh, kw).clone().float())
+
+    def forward(self, x):
+        c = x.shape[1]
+        k = self.weight.expand(c, 1, self.kh, self.kw)
+        pad = (self.d * (self.kh // 2), self.d * (self.kw // 2))
+        return F.conv2d(x, k, padding=pad, dilation=self.d, groups=c)
 
 
 # Fixed physical kernels (3x3).
