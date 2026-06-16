@@ -8,7 +8,9 @@ GPU="$1"; EXP="$2"; shift 2
 EXTRA_ENV="$*"
 LOG="logs/hetero/${EXP}.log"
 echo "[$(date '+%H:%M:%S')] GPU${GPU} START ${EXP}  extra=[${EXTRA_ENV}]" | tee -a logs/hetero/queue.log
-CUDA_VISIBLE_DEVICES="${GPU}" USEANET_HETERO_EXPERTS=1 USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.2 \
+# `env` is needed so the word-split ${EXTRA_ENV} is parsed as KEY=VAL assignments
+# (a bare expansion after assignment prefixes is NOT re-recognised as assignments).
+env CUDA_VISIBLE_DEVICES="${GPU}" USEANET_HETERO_EXPERTS=1 USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.2 \
   USEANET_STRONG_AUG=1 USEANET_LOSS_REGION=iou ${EXTRA_ENV} \
   conda run -n ubench1 python -u main.py --gpu 0 --model USEANet --model_id 115 \
   --base_dir hf_data/data/busi --dataset_name busi --do_deeps 1 \
