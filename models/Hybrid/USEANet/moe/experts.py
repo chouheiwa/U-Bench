@@ -136,6 +136,8 @@ def _build_hetero_experts(in_channel, out_channel, channel=32):
 
 
 def build_experts(in_channel, out_channel, channel=32):
+    if os.environ.get("USEANET_HETERO_EXPERTS") == "1":
+        return _build_hetero_experts(in_channel, out_channel, channel)
     ks = _kernels()
     return nn.ModuleList(
         _AnchoredExpert(in_channel, out_channel, ks[name], channel)

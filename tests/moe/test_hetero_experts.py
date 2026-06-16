@@ -43,3 +43,18 @@ def test_hetero_kernels_cover_all_experts():
     ks = _hetero_kernels()
     for name in EXPERT_NAMES:
         assert name in ks, f"missing hetero kernel spec for {name}"
+
+
+def test_build_experts_dispatch(monkeypatch):
+    from models.Hybrid.USEANet.moe.experts import (
+        build_experts, _AnchoredExpert, _HeteroExpert,
+    )
+    monkeypatch.delenv("USEANET_HETERO_EXPERTS", raising=False)
+    homo = build_experts(160, 32)
+    assert all(isinstance(e, _AnchoredExpert) for e in homo)
+    assert len(homo) == len(EXPERT_NAMES)
+
+    monkeypatch.setenv("USEANET_HETERO_EXPERTS", "1")
+    hetero = build_experts(160, 32)
+    assert all(isinstance(e, _HeteroExpert) for e in hetero)
+    assert len(hetero) == len(EXPERT_NAMES)
