@@ -82,6 +82,21 @@ def test_hetero_prefilter_gets_gradient():
     assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0
 
 
+def test_hetero_structure_is_real():
+    from models.Hybrid.USEANet.moe.experts import _build_hetero_experts
+    experts = _build_hetero_experts(160, 32, 32)
+    idx = {name: i for i, name in enumerate(EXPERT_NAMES)}
+    # SE only on contrast
+    assert hasattr(experts[idx["contrast"]], "se")
+    assert not hasattr(experts[idx["edge"]], "se")
+    # anisotropic shadow prefilter (7x1) differs in shape from edge (3x3)
+    shadow_k = experts[idx["shadow"]].prefilters[0].weight.shape[-2:]
+    edge_k = experts[idx["edge"]].prefilters[0].weight.shape[-2:]
+    assert shadow_k == (7, 1)
+    assert edge_k == (3, 3)
+    assert shadow_k != edge_k
+
+
 def test_physics_moe_end_to_end_hetero(monkeypatch):
     monkeypatch.setenv("USEANET_HETERO_EXPERTS", "1")
     from models.Hybrid.USEANet.moe.physics_moe import PhysicsMoE

@@ -12,6 +12,9 @@ import torch.nn.functional as F
 
 from . import EXPERT_NAMES
 
+_DROPOUT_P = 0.1        # channel-wise dropout on each hetero expert head (regularisation knob)
+_SE_REDUCTION = 16      # contrast expert SE bottleneck = max(8, in_channel // _SE_REDUCTION)
+
 
 class _AnchoredExpert(nn.Module):
     """fixed depthwise prefilter (broadcast over channels) + small learnable head."""
@@ -100,7 +103,7 @@ class _HeteroExpert(nn.Module):
         )
         self.use_se = use_se
         if use_se:
-            hidden = max(8, in_channel // 16)
+            hidden = max(8, in_channel // _SE_REDUCTION)
             self.se = nn.Sequential(
                 nn.AdaptiveAvgPool2d(1),
                 nn.Conv2d(in_channel, hidden, 1), nn.ReLU(inplace=True),
@@ -111,7 +114,7 @@ class _HeteroExpert(nn.Module):
             nn.BatchNorm2d(channel),
             nn.ReLU(inplace=True),
             nn.Conv2d(channel, channel, 3, padding=1, groups=channel, bias=False),
-            nn.Dropout2d(0.1),
+            nn.Dropout2d(_DROPOUT_P),
             nn.Conv2d(channel, out_channel, 1, bias=False),
         )
 
@@ -125,6 +128,8 @@ class _HeteroExpert(nn.Module):
 
 
 def _build_hetero_experts(in_channel, out_channel, channel=32):
+    # `channel` is accepted for build_experts() signature parity; each expert's
+    # width comes from _hetero_kernels(), so this arg is intentionally unused here.
     specs = _hetero_kernels()
     return nn.ModuleList(
         _HeteroExpert(in_channel, out_channel,
