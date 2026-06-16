@@ -26,3 +26,20 @@ def test_learnable_prefilter_anisotropic_and_dilated():
     pfd = _LearnablePrefilter(dk, dilation=2)
     outd = pfd(torch.rand(1, 8, 12, 12))
     assert outd.shape == (1, 8, 12, 12)
+
+
+def test_hetero_expert_shapes_x3_x4():
+    from models.Hybrid.USEANet.moe.experts import _build_hetero_experts
+    for in_ch in (160, 256):                       # x3, x4
+        experts = _build_hetero_experts(in_ch, 32, 32)
+        assert len(experts) == len(EXPERT_NAMES)
+        feat = torch.rand(2, in_ch, 8, 8)
+        for e in experts:
+            assert e(feat).shape == (2, 32, 8, 8)
+
+
+def test_hetero_kernels_cover_all_experts():
+    from models.Hybrid.USEANet.moe.experts import _hetero_kernels
+    ks = _hetero_kernels()
+    for name in EXPERT_NAMES:
+        assert name in ks, f"missing hetero kernel spec for {name}"

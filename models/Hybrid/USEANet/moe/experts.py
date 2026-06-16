@@ -71,6 +71,70 @@ def _kernels():
     }
 
 
+def _hetero_kernels():
+    """Per-expert init kernels + structural knobs (design table). Reuses _kernels() bases."""
+    base = _kernels()
+    box5 = torch.ones(5, 5) / 25.0                                   # large despeckle
+    vgrad7 = torch.tensor([[1.0], [1.0], [1.0], [0.0],
+                           [-1.0], [-1.0], [-1.0]])                  # 7x1 shadow (vertical atten.)
+    post5 = torch.tensor([[0.0], [0.0], [1.0], [2.0], [1.0]]) / 4.0  # 5x1 below-structure posterior
+    return {
+        # name: dict(prefilters=[(kernel, dilation), ...], channel=int, use_se=bool)
+        "despeckle": dict(prefilters=[(box5, 1), (base["despeckle"], 2)], channel=48, use_se=False),
+        "edge":      dict(prefilters=[(base["edge"], 1)],                 channel=48, use_se=False),
+        "shadow":    dict(prefilters=[(vgrad7, 1)],                       channel=32, use_se=False),
+        "posterior": dict(prefilters=[(post5, 1)],                       channel=32, use_se=False),
+        "contrast":  dict(prefilters=[(base["contrast"], 1)],            channel=48, use_se=True),
+        "hf":        dict(prefilters=[(base["hf"], 1), (base["hf"], 2)], channel=32, use_se=False),
+    }
+
+
+class _HeteroExpert(nn.Module):
+    """Physics-anchored heterogeneous expert: 1-2 learnable prefilter branches (summed),
+    optional channel-SE gate, then a Dropout-regularised lightweight head."""
+
+    def __init__(self, in_channel, out_channel, prefilters, channel=32, use_se=False):
+        super().__init__()
+        self.prefilters = nn.ModuleList(
+            _LearnablePrefilter(k, d) for (k, d) in prefilters
+        )
+        self.use_se = use_se
+        if use_se:
+            hidden = max(8, in_channel // 16)
+            self.se = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                nn.Conv2d(in_channel, hidden, 1), nn.ReLU(inplace=True),
+                nn.Conv2d(hidden, in_channel, 1), nn.Sigmoid(),
+            )
+        self.head = nn.Sequential(
+            nn.Conv2d(in_channel, channel, 1, bias=False),
+            nn.BatchNorm2d(channel),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel, channel, 3, padding=1, groups=channel, bias=False),
+            nn.Dropout2d(0.1),
+            nn.Conv2d(channel, out_channel, 1, bias=False),
+        )
+
+    def forward(self, x):
+        y = self.prefilters[0](x)
+        for pf in self.prefilters[1:]:
+            y = y + pf(x)
+        if self.use_se:
+            y = y * self.se(x)
+        return self.head(y)
+
+
+def _build_hetero_experts(in_channel, out_channel, channel=32):
+    specs = _hetero_kernels()
+    return nn.ModuleList(
+        _HeteroExpert(in_channel, out_channel,
+                      prefilters=specs[name]["prefilters"],
+                      channel=specs[name]["channel"],
+                      use_se=specs[name]["use_se"])
+        for name in EXPERT_NAMES
+    )
+
+
 def build_experts(in_channel, out_channel, channel=32):
     ks = _kernels()
     return nn.ModuleList(
