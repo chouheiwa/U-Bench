@@ -58,3 +58,25 @@ def test_build_experts_dispatch(monkeypatch):
     hetero = build_experts(160, 32)
     assert all(isinstance(e, _HeteroExpert) for e in hetero)
     assert len(hetero) == len(EXPERT_NAMES)
+
+
+def test_hetero_param_budget():
+    from models.Hybrid.USEANet.moe.experts import _build_hetero_experts, build_experts
+    import os as _os
+    # 异构每专家 < 60k(增容但不爆);整组 < 同构整组的 3x
+    hetero = _build_hetero_experts(256, 32, 32)
+    for e in hetero:
+        n = sum(p.numel() for p in e.parameters() if p.requires_grad)
+        assert n < 60000, f"hetero expert too heavy: {n}"
+    homo_total = sum(p.numel() for e in build_experts(256, 32) for p in e.parameters())
+    hetero_total = sum(p.numel() for e in hetero for p in e.parameters())
+    assert hetero_total < 3 * homo_total, f"hetero {hetero_total} vs homo {homo_total}"
+
+
+def test_hetero_prefilter_gets_gradient():
+    from models.Hybrid.USEANet.moe.experts import _build_hetero_experts
+    e = _build_hetero_experts(16, 32, 32)[2]   # shadow, 7x1 learnable kernel
+    out = e(torch.rand(1, 16, 12, 12))
+    out.sum().backward()
+    g = e.prefilters[0].weight.grad
+    assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0
