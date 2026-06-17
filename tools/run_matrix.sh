@@ -17,13 +17,21 @@ METHODS=(
 DATASETS=( "busi|hf_data/data/busi" "bus|hf_data/data/bus" "BUSBRA|hf_data/data/BUSBRA" "tuscui|hf_data/data/tuscui" )
 SEEDS=( 41 42 43 )
 
-# 已完成? CSV(result_<DS>_train.csv)有 model==m && seed==s && best_iou(field23)>0；或 FAILED 标记
+# 已完成? CSV(result_<DS>_train.csv)有 model==m && seed==s && best_iou>0；或 FAILED 标记。
+# 注:CSV 存在两种 schema(33/34 列,新行多一个 resume 空字段),best_iou 列号会漂移。
+# 因此不用硬编码列号,而是定位 exp_save_dir(以 ./output 开头),其下一字段即 best_iou。
 is_done() {
   local m="$1" ds="$2" s="$3" lock="$4"
   [ -e "${lock}/FAILED" ] && return 0
   local csv="result/result_${ds}_train.csv"
   [ -f "$csv" ] || return 1
-  awk -F, -v m="$m" -v s="$s" '$1==m && $10==s && ($23+0)>0 {f=1} END{exit !f}' "$csv"
+  awk -F, -v m="$m" -v s="$s" '
+    $1==m && $10==s {
+      iou=""
+      for(i=1;i<=NF;i++){ if($i ~ /^\.\/output/){ iou=$(i+1); break } }
+      if(iou+0>0){f=1}
+    }
+    END{exit !f}' "$csv"
 }
 
 while true; do
