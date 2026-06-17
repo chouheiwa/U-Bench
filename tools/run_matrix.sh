@@ -41,6 +41,12 @@ while true; do
         ran=1
         exp="mtx_s${s}"
         log="logs/matrix/${name}_${ds}_s${s}.log"
+        # 护栏:等本物理卡显存空(<2500MiB)再开,避免与外部任务/残留进程同卡争抢/OOM
+        while true; do
+          used=$(nvidia-smi -i "${GPU}" --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
+          [ -n "$used" ] && [ "$used" -lt 2500 ] && break
+          sleep 60
+        done
         echo "[$(date '+%m-%d %H:%M:%S')] GPU${GPU} START ${name} ${ds} s${s}" | tee -a logs/matrix/driver_gpu${GPU}.log
         env CUDA_VISIBLE_DEVICES="${GPU}" USEANET_STRONG_AUG=1 \
           conda run -n ubench1 python -u main.py --model "${name}" --model_id "${mid}" --img_size "${isz}" \
