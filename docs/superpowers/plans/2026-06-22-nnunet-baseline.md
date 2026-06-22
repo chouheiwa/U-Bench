@@ -8,6 +8,11 @@
 
 ---
 
+## Status (2026-06-22)
+- **Phase A: DONE** (commit `31d08e9`). A1 env `nnunet`+nnunetv2 2.8.0; trainers resolve by name. A2 seed trainers symlinked into nnunetv2 `variants/`. A3 convert (+imagesVal symlinks, case_map/ubench_split sidecars). A4 convert sanity (bus 393/169) green. A5 eval + IoU parity (54 cases) green. A6 driver `tools/run_nnunet.sh` (`bash -n` clean, GPU-guarded).
+- Discovery: official `nnUNetTrainer_250epochs`/`_5epochs` presets exist → seed trainers just subclass them (no manual epoch wiring). cudnn left native (not forced deterministic).
+- **Phase B: BLOCKED on matrix** (68/120 as of 10:30). Do NOT launch `run_nnunet.sh` until matrix 120/120 — its GPU guard would grab brief inter-cell windows and contend. Launch smoke (`_s41_5e` on bus) first, then full 12-cell.
+
 ## Phase A — buildable now (no GPU)
 
 ### Task A1: Isolated env + registration smoke
