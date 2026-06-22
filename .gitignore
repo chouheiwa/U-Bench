@@ -212,3 +212,8 @@ weights/
 hf_data/
 output/
 result/
+
+# nnU-Net work dirs (heavy, regenerable)
+/nnunet/raw/
+/nnunet/preprocessed/
+/nnunet/results/
