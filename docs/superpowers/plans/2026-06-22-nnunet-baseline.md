@@ -63,6 +63,15 @@
 - B: smoke produces a CSV row; full run → `result/result_nnunet.csv` has 12 rows, IoU ∈ ~0.6–0.85.
 - Final: nnU-Net vs PUMA-Net vs 10 methods table, 3-seed CIs.
 
+## Data layout gotchas (confirmed on disk 2026-06-22)
+Split files are `hf_data/data/<ds>/{train,val}.txt`. Counts verified: busi 452/195, bus 393/169, BUSBRA 1500/375, tuscui 2550/1094.
+**Case-name sanitization is REQUIRED** (nnU-Net case IDs must be clean identifiers — no spaces/parens/dots):
+- **busi**: list entries like `malignant (84)` → file `images/malignant (84).png`, mask `masks/0/malignant (84).png`. Sanitize → e.g. `busi_<idx>` with a kept `{clean→original}` map for val GT lookup.
+- **bus**: `case0493` (clean) → `images/case0493.png`, `masks/0/case0493.png`.
+- **BUSBRA**: list entries include `.png` (`bus_0523-l.png`); image `Images/bus_0523-l.png`, mask `Masks/mask_0523-l.png` (strip `bus_`→`mask`, drop extension when sanitizing case id). Verify mask naming on a sample during impl.
+- **tuscui**: pure numeric `1698` → `images/1698.png`, `masks/0/1698.png`. Prefix to `tuscui_1698` for safety.
+Convert must persist a per-dataset `case_map.json {clean_id: {orig_name, val:bool}}` so `eval_nnunet.py` can match predictions back to the original val GT masks.
+
 ## Notes
 - Only deviation from nnU-Net default: **250 epochs** (parity + feasibility) — confirmed by user.
 - Do not touch `ubench1`, `run_matrix.sh`, or the running matrix.
