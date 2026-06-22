@@ -13,6 +13,13 @@
 - Discovery: official `nnUNetTrainer_250epochs`/`_5epochs` presets exist → seed trainers just subclass them (no manual epoch wiring). cudnn left native (not forced deterministic).
 - **Phase B: BLOCKED on matrix** (68/120 as of 10:30). Do NOT launch `run_nnunet.sh` until matrix 120/120 — its GPU guard would grab brief inter-cell windows and contend. Launch smoke (`_s41_5e` on bus) first, then full 12-cell.
 
+## HD95 backfill sub-project (added 2026-06-22, commit `707555c`)
+The matrix's main.py never recorded HD95 (metrics_medpy only IoU/Dice/SE/PC/F1/SP/ACC). Backfilled offline from `checkpoint_best.pth` — no retrain.
+- `tools/offline_hd95.py` (+`test_hd95_case.py`): val inference at 256 (val_transform Resize+Normalize, identical to training), medpy hd95 per case. **Empty-pred → image-diagonal penalty** (user decision; GT always non-empty here). Recomputes IoU as sanity (CPU smoke U_Net busi s42: IoU_check 0.6659 == recorded exactly). Deep-supervision (USEANet/PUMA id115) → out[-1].
+- `tools/run_hd95.sh <GPU>`: GPU-guarded work-stealing driver, **queues behind matrix** like nnU-Net. 10 baselines mtx_ cells auto + optional PUMA manifest `tools/hd95_puma_cells.txt`. Idempotent via `result/result_hd95.csv`. HD95 inference is fast (minutes/cell, single val forward) — not hours like training.
+- Scope = all (10 baselines + PUMA-Net + nnU-Net). PUMA canonical exp per dataset still TBD by user → fill manifest then.
+- **⚠️ nnU-Net HD95 must be computed at 256** (resize pred+GT to 256 before medpy hd95) — baselines' HD95 is in 256-px space and HD95 is absolute-pixel/resolution-sensitive; nnU-Net's native output is original-res → not comparable unless resized. Add this to `eval_nnunet.py` when wiring Phase B.
+
 ## Phase A — buildable now (no GPU)
 
 ### Task A1: Isolated env + registration smoke
