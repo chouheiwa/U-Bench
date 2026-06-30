@@ -47,8 +47,13 @@ def _high_freq_energy(g):
     return torch.clamp(g - F.avg_pool2d(g, 5, 1, 2), min=0.0).abs()
 
 
-def degradation_proxies(feat, eps=1e-6):
-    """feat: [B,C,H,W] -> proxy [B, len(EXPERT_NAMES), H, W], softmax over experts."""
+def degradation_proxies(feat, eps=1e-6, num_experts=None):
+    """feat: [B,C,H,W] -> proxy [B, N, H, W], softmax over experts.
+
+    ``num_experts`` (ablation switch) selects the first N physical cues from
+    ``EXPERT_NAMES``; default None -> all 6 (byte-identical to the original).
+    """
+    names = EXPERT_NAMES if num_experts is None else EXPERT_NAMES[:num_experts]
     g = feat.mean(dim=1, keepdim=True)  # [B,1,H,W]
     cues = {
         "despeckle": _local_variance(g),
@@ -58,7 +63,7 @@ def degradation_proxies(feat, eps=1e-6):
         "contrast": _low_freq_energy(g),
         "hf": _high_freq_energy(g),
     }
-    stack = torch.cat([cues[name] for name in EXPERT_NAMES], dim=1)  # [B,6,H,W]
+    stack = torch.cat([cues[name] for name in names], dim=1)  # [B,N,H,W]
     # Divide each channel by its spatial maximum so all channels live in [0,1]
     # while preserving the per-position ratio between channels (unlike min-max
     # which can over-equalise cues that happen to peak at the same location).

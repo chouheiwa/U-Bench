@@ -81,6 +81,12 @@ class USEANet(nn.Module):
         self._progress = float(max(0.0, min(1.0, frac)))
 
     def _route_weight(self):
+        # Ablation switch USEANET_ROUTE_WEIGHT=w pins the router-supervision
+        # weight to a constant (0 = routing supervision off; load-balance still
+        # on). Default (unset) -> the original MAX->MIN anneal.
+        override = os.environ.get("USEANET_ROUTE_WEIGHT")
+        if override is not None:
+            return float(override)
         t = min(self._progress / ANNEAL_FRACTION, 1.0)
         return ROUTE_WEIGHT_MAX + (ROUTE_WEIGHT_MIN - ROUTE_WEIGHT_MAX) * t
 

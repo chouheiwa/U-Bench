@@ -6,6 +6,8 @@ maps, routes per-position top-2 over 6 anchored experts, combines densely with
 the gate mask. Stashes ``last_gate`` / ``last_proxy`` and exposes ``aux_loss``
 for the adapter to aggregate (router supervision + load balance).
 """
+import os
+
 import torch
 import torch.nn as nn
 
@@ -19,8 +21,17 @@ from .losses import router_supervision_loss, load_balance_loss, effective_expert
 class PhysicsMoE(nn.Module):
     def __init__(self, in_channel, out_channel, num_experts=None, k=2, channel=32):
         super().__init__()
-        num_experts = num_experts or len(EXPERT_NAMES)
-        self.experts = build_experts(in_channel, out_channel, channel)
+        # Ablation env switches (default-off -> identical 6-expert top-2 model):
+        #   USEANET_NUM_EXPERTS=N -> use the first N physics cues/experts (default 6)
+        #   USEANET_TOPK=k        -> per-position active experts (default 2; 1 = top-1)
+        if num_experts is None:
+            num_experts = int(os.environ.get("USEANET_NUM_EXPERTS", len(EXPERT_NAMES)))
+        num_experts = max(1, min(num_experts, len(EXPERT_NAMES)))
+        k = int(os.environ.get("USEANET_TOPK", k))
+        k = max(1, min(k, num_experts))
+        self.num_experts = num_experts
+        self.k = k
+        self.experts = build_experts(in_channel, out_channel, channel, num_experts)
         self.router = DegradationAwareRouter(in_channel, num_experts, k)
         self.res = nn.Conv2d(in_channel, out_channel, 1, bias=False)
         self.relu = nn.ReLU(inplace=True)
@@ -30,7 +41,7 @@ class PhysicsMoE(nn.Module):
         self.last_proxy = None
 
     def forward(self, x):
-        proxy = degradation_proxies(x)                       # [B,E,H,W]
+        proxy = degradation_proxies(x, num_experts=self.num_experts)  # [B,E,H,W]
         gate = self.router(x, proxy)                          # [B,E,H,W]
         # Dense expert compute + per-position top-2 mask combine.
         out = 0.0

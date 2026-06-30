@@ -131,7 +131,7 @@ class _HeteroExpert(nn.Module):
         return self.head(y)
 
 
-def _build_hetero_experts(in_channel, out_channel, channel=32):
+def _build_hetero_experts(in_channel, out_channel, channel=32, names=None):
     # `channel` is accepted for build_experts() signature parity; each expert's
     # width comes from _hetero_kernels() unless overridden by an env knob below.
     # Overfit-reduction knobs (ablation, all default-off / no-override):
@@ -144,21 +144,25 @@ def _build_hetero_experts(in_channel, out_channel, channel=32):
     freeze = os.environ.get("USEANET_HETERO_FREEZE") == "1"
     dropout_p = float(os.environ.get("USEANET_HETERO_DROPOUT", _DROPOUT_P))
     specs = _hetero_kernels()
+    names = EXPERT_NAMES if names is None else names
     return nn.ModuleList(
         _HeteroExpert(in_channel, out_channel,
                       prefilters=specs[name]["prefilters"],
                       channel=int(ch_override) if ch_override else specs[name]["channel"],
                       use_se=specs[name]["use_se"] and not no_se,
                       freeze=freeze, dropout_p=dropout_p)
-        for name in EXPERT_NAMES
+        for name in names
     )
 
 
-def build_experts(in_channel, out_channel, channel=32):
+def build_experts(in_channel, out_channel, channel=32, num_experts=None):
+    # ``num_experts`` (ablation switch) selects the first N physics experts from
+    # ``EXPERT_NAMES``; default None -> all 6 (byte-identical to the original).
+    names = EXPERT_NAMES if num_experts is None else EXPERT_NAMES[:num_experts]
     if os.environ.get("USEANET_HETERO_EXPERTS") == "1":
-        return _build_hetero_experts(in_channel, out_channel, channel)
+        return _build_hetero_experts(in_channel, out_channel, channel, names)
     ks = _kernels()
     return nn.ModuleList(
         _AnchoredExpert(in_channel, out_channel, ks[name], channel)
-        for name in EXPERT_NAMES
+        for name in names
     )
