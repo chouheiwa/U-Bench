@@ -103,14 +103,12 @@ for method in methods:
         iou_str, _, _ = fmt(ivals)
         if any(v is None for v in ivals):
             missing.append(f"IoU {method}/{ds}: {ivals}")
-        # HD95 (仅 baseline)
-        if method in BASELINES:
-            hvals = [hd95_pick(method, ds, s) for s in SEEDS]
-            hd_str, _, _ = fmt(hvals)
-            if any(v is None for v in hvals):
-                missing.append(f"HD95 {method}/{ds}: {hvals}")
-        else:
-            hd_str = "N/A"
+        # HD95: 全 12 方法可得(baseline/PUMA/nnUNet 均在 result_hd95.csv,
+        # modelname 与 method 同名; nnUNet 已 256-resize 口径)。
+        hvals = [hd95_pick(method, ds, s) for s in SEEDS]
+        hd_str, _, _ = fmt(hvals)
+        if any(v is None for v in hvals):
+            missing.append(f"HD95 {method}/{ds}: {hvals}")
         cell[ds] = (iou_str, hd_str)
     rows.append((method, cell))
 
@@ -138,9 +136,9 @@ with open("result/result_main_table.md", "w") as f:
     for method, cell in rows:
         f.write(f"| {DISP.get(method, method)} | "
                 + " | ".join(cell[ds][0] for ds in DATASETS) + " |\n")
-    f.write("\n# HD95 (3-seed mean±std) — 仅 baseline 可得\n\n")
-    f.write("> PUMA-Net 与 nnU-Net 的 HD95 尚未离线补算 (PUMA 待定 canonical exp; "
-            "nnU-Net 有 256-resize 口径问题)，故标 N/A。\n\n")
+    f.write("\n# HD95 (3-seed mean±std, 256-px 空间, 空预测罚对角线~362)\n\n")
+    f.write("> 全 12 方法齐全。baseline/PUMA 在 val_transform 的 256 空间原生推理; "
+            "nnU-Net 原生输出为原图分辨率，pred+GT 均最近邻 resize 到 256 再算(口径可比)。\n\n")
     f.write("| Method | " + " | ".join(DATASETS) + " |\n")
     f.write("|" + "---|" * (len(DATASETS) + 1) + "\n")
     for method, cell in rows:

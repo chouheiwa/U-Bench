@@ -1,0 +1,14 @@
+# PUMA-Net(USEANet id115) HD95 canonical cells — 与主表 result_main_table 同源
+# 格式: model_id|name|img_size|base_dir|dataset|seed|exp_save_dir|exp_name
+115|USEANet|256|hf_data/data/busi|busi|41|output/USEANet/busi/disc_mult02_busi|disc_mult02_busi
+115|USEANet|256|hf_data/data/busi|busi|42|output/USEANet/busi/disc_mult02_s42|disc_mult02_s42
+115|USEANet|256|hf_data/data/busi|busi|43|output/USEANet/busi/disc_mult02_s43|disc_mult02_s43
+115|USEANet|256|hf_data/data/bus|bus|41|output/USEANet/bus/c2a_bus_s41|c2a_bus_s41
+115|USEANet|256|hf_data/data/bus|bus|42|output/USEANet/bus/c2a_bus_s42|c2a_bus_s42
+115|USEANet|256|hf_data/data/bus|bus|43|output/USEANet/bus/c2a_bus_s43|c2a_bus_s43
+115|USEANet|256|hf_data/data/BUSBRA|BUSBRA|41|output/USEANet/BUSBRA/c2a_BUSBRA_s41|c2a_BUSBRA_s41
+115|USEANet|256|hf_data/data/BUSBRA|BUSBRA|42|output/USEANet/BUSBRA/c2a_BUSBRA_s42|c2a_BUSBRA_s42
+115|USEANet|256|hf_data/data/BUSBRA|BUSBRA|43|output/USEANet/BUSBRA/c2a_BUSBRA_s43|c2a_BUSBRA_s43
+115|USEANet|256|hf_data/data/tuscui|tuscui|41|output/USEANet/tuscui/c2a_tuscui_s41|c2a_tuscui_s41
+115|USEANet|256|hf_data/data/tuscui|tuscui|42|output/USEANet/tuscui/c2a_tuscui_s42|c2a_tuscui_s42
+115|USEANet|256|hf_data/data/tuscui|tuscui|43|output/USEANet/tuscui/c2a_tuscui_s43|c2a_tuscui_s43
