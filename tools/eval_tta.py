@@ -80,7 +80,7 @@ def main():
         model="USEANet", base_dir="hf_data/data/busi", dataset_name="busi",
         train_file_dir="train.txt", val_file_dir="val.txt", batch_size=8,
         img_size=256, num_classes=1, input_channel=3,
-        pretrained_model_path="/home/chouheiwa/experiment/pretrain_model",
+        pretrained_model_path=os.environ.get("PRETRAINED_MODEL_PATH", "./pretrained"),
         model_id=115, do_deeps=True, seed=41,
     )
     model = build_model(config=cfg, input_channel=3, num_classes=1,

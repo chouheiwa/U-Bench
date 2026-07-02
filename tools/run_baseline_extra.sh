@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GPU="$1"; NAME="$2"; MID="$3"
 LOG="logs/baseline/${NAME}_s41.log"
 echo "[$(date '+%H:%M:%S')] GPU${GPU} START ${NAME} (id=${MID})" | tee -a logs/baseline/extra_queue.log

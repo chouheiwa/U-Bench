@@ -5,7 +5,7 @@
 # 覆盖:10 基线的 mtx_ 格 + 可选 PUMA 清单(tools/hd95_puma_cells.txt)。
 # 注:HD95 推理很快(单次 val 前向,分钟级/格),不是训练那种小时级。
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GPU="$1"
 mkdir -p logs/hd95 locks/hd95
 

@@ -3,7 +3,7 @@
 # 用法: bash tools/run_baselines_s41.sh <GPU_INDEX> <queue_name>
 # recipe 优化器门控在 model=='USEANet',baseline 自动走标准 SGD poly-LR。
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p logs/baseline
 
 GPU="$1"; QUEUE="$2"

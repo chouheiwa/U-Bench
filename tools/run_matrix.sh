@@ -3,7 +3,7 @@
 # 两卡各跑一个;共享任务表,mkdir 原子锁抢任务,CSV 查重跳过已完成(复用历史结果),
 # 失败留 FAILED 标记不死循环。幂等、可重启。USEANet 不在表内(已全跑完且用自有配方)。
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GPU="$1"
 mkdir -p logs/matrix locks/matrix
 

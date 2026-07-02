@@ -217,3 +217,16 @@ result/
 /nnunet/raw/
 /nnunet/preprocessed/
 /nnunet/results/
+
+
+# --- anonymized open-source hygiene ---
+# (comments on their own line; inline "# ..." after a pattern is NOT valid)
+docs/superpowers/
+paper/
+writing.md
+logs/
+wandb/
+locks/
+HANDOFF.md
+*.fls
+*.fdb_latexmk

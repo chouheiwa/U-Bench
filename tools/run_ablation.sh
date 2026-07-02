@@ -8,10 +8,10 @@
 #   nohup bash tools/run_ablation.sh 0 >/dev/null 2>&1 &
 #   nohup bash tools/run_ablation.sh 1 >/dev/null 2>&1 &
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GPU="${1:?用法: run_ablation.sh <GPU>}"
 LOCKS="locks/ablation"; mkdir -p "$LOCKS" logs/ablation
-PRETRAIN=/home/chouheiwa/experiment/pretrain_model
+PRETRAIN=${PRETRAINED_MODEL_PATH:-./pretrained}
 BASE_RECIPE="USEANET_DISC_LR=1 USEANET_BACKBONE_LR_MULT=0.2 USEANET_STRONG_AUG=1 USEANET_LOSS_REGION=iou"
 DRIVERLOG="logs/ablation/driver_gpu${GPU}.log"
 

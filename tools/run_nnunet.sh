@@ -5,13 +5,14 @@
 # 幂等可重启:结果写 result/result_nnunet.csv;失败留 FAILED 标记不死循环。
 # 唯一偏离 nnU-Net 默认:250 epoch(可行性 + 与 U-Bench 训练预算对齐)。
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GPU="$1"
 
 REPO="$(pwd)"
 export nnUNet_raw="${REPO}/nnunet/raw"
 export nnUNet_preprocessed="${REPO}/nnunet/preprocessed"
 export nnUNet_results="${REPO}/nnunet/results"
+export nnUNet_compile=f   # 关 torch.compile:cu118+torch2.7 下 compile 段错误杀进程
 mkdir -p logs/nnunet locks/nnunet "$nnUNet_preprocessed" "$nnUNet_results"
 
 # dsname|DatasetID
