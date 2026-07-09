@@ -16,6 +16,17 @@ def router_supervision_loss(gate, proxy, eps=1e-8):
     return kl.mean()
 
 
+def physics_calib_loss(pred_phys, target_phys):
+    """L1 between estimated calibrated physics maps and their classical pseudo-GT.
+
+    Both [B, n_phys, H, W] in [0,1]. Weakly supervises the PhysicsEstimator so the
+    learned maps stay anchored to genuine acoustic moment estimates (Nakagami-m,
+    attenuation, SNR) rather than drifting into an arbitrary routing basis.
+    ``target_phys`` must already be detached (see PhysicsEstimator.calib_target).
+    """
+    return (pred_phys - target_phys).abs().mean()
+
+
 def load_balance_loss(gate):
     """Switch loss: E * sum_e (f_e * P_e), minimised at uniform usage.
 

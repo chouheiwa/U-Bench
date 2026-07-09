@@ -128,7 +128,7 @@ def getZeroShotDataloader(args):
         Resize(img_size, img_size),
         transforms.Normalize(),
     ])
-    if args.zero_shot_dataset_name in ["busi","isic18","tuscui","bus","Benign","malignant", "stare"]:
+    if args.zero_shot_dataset_name in ["busi","isic18","tuscui","bus","Benign","malignant", "stare","BrEaST"]:
         db_val = MedicalDataSetsVal(base_dir=args.zero_shot_base_dir, transform=val_transform,val_file_dir=args.val_file_dir)
     elif 'PH2' in args.zero_shot_base_dir:  # ./data/PH2Dataset/PH2
         db_val = PH2Dataset(args.zero_shot_base_dir, mode='test', transform=val_transform)
