@@ -5,7 +5,7 @@
 # 长任务(数小时);完成后主叫方跑 tools/wilcoxon_cross.py 出缩放证据。
 # 用法: bash tools/run_phys2_orchestrate.sh
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 
 EXPS=""
 for src in busi BUSBRA; do for v in nak att snr; do for sd in 41 42 43; do

@@ -149,7 +149,7 @@ def main():
     ap.add_argument("--exp_save_dir", required=True)
     ap.add_argument("--exp_name", required=True)
     ap.add_argument("--val_file_dir", default="val.txt")
-    ap.add_argument("--pretrained_model_path", default="/home/chouheiwa/experiment/pretrain_model")
+    ap.add_argument("--pretrained_model_path", default="./pretrained")
     ap.add_argument("--dump_cases", action="store_true",
                     help="also write per-case IoU/Dice/Recall/HD95 for paired significance tests")
     ap.add_argument("--percase_csv", default=os.path.join(REPO, "result", "percase_cross_dataset.csv"))

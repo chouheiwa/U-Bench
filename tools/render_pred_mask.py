@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-REPO = "/home/chouheiwa/python/U-Bench"
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 OUT = os.path.join(REPO, "paper/puma-net/assets")
 os.makedirs(OUT, exist_ok=True)

@@ -20,7 +20,7 @@ import os
 import numpy as np
 import cv2
 
-REPO = "/home/chouheiwa/python/U-Bench"
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(REPO, "result", "source_degradation.txt")
 
 # path convention per source: (dir, whether val.txt entries already carry .png)

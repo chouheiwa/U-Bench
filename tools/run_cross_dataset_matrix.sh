@@ -3,7 +3,7 @@
 # 对角线(源==目标)当 in-domain 复现 sanity check。结果落 result/result_cross_dataset.csv。
 # 用法: bash tools/run_cross_dataset_matrix.sh [GPU]
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 GPU="${1:-0}"
 DATASETS=(busi bus BUSBRA tuscui)
 

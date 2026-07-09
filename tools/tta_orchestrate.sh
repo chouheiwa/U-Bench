@@ -5,7 +5,7 @@
 #     -> tta_s20_g{0,1}.csv,验证"Tent过度适应崩 / physcalib鲁棒 / physent能否稳住Tent"
 # 完成后主叫方聚合两阶段出多基线+步数鲁棒性表。
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 mkdir -p logs/tta
 
 echo "[orch $(date '+%H:%M:%S')] 等 steps=3 主矩阵完成..."

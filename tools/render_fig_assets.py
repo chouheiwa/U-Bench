@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-REPO = "/home/chouheiwa/python/U-Bench"
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 from models.Hybrid.USEANet.pvtv2 import pvt_v2_b0
 from models.Hybrid.USEANet.moe.proxy import degradation_proxies

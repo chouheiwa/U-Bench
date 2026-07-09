@@ -42,7 +42,7 @@ def build_args(src, tgt, seed):
         model="USEANet", model_id=115, img_size=256,
         base_dir=f"./data/{src}", dataset_name=src, batch_size=8, seed=seed,
         input_channel=3, num_classes=1, do_deeps=False,
-        pretrained_model_path="/home/chouheiwa/experiment/pretrain_model",
+        pretrained_model_path="./pretrained",
         exp_save_dir=f"./output/USEANet/{src}/calib_{src}_s{seed}",
         train_file_dir="train.txt", val_file_dir="val.txt",
         zero_shot_dataset_name=tgt, zero_shot_base_dir=f"./data/{tgt}")

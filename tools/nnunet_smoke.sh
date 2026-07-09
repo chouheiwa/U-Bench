@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # nnU-Net Phase B smoke: bus seed41 5-epoch, 验证全链路
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 GPU="${1:-0}"
 REPO="$(pwd)"
 export nnUNet_raw="${REPO}/nnunet/raw"

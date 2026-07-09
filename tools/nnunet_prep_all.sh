@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 串行预备全部 4 数据集(canonical nnU-Net:先一次性预处理,再并行训练),避免并发预处理竞争
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 REPO="$(pwd)"
 export nnUNet_raw="${REPO}/nnunet/raw"
 export nnUNet_preprocessed="${REPO}/nnunet/preprocessed"

@@ -5,7 +5,7 @@
 # 手工基线同子矩阵已在 csv 中,聚合时按 exp_name 前缀对比。
 # 用法: bash tools/run_calib_cross_matrix.sh [GPU]   (须等 9 个标定训练全部跑完)
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 GPU="${1:-0}"
 SRCS=(busi bus BUSBRA)
 TGTS=(busi bus BUSBRA BrEaST)

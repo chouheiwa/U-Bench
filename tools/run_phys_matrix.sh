@@ -5,7 +5,7 @@
 # 完成后接 run_calib_cross_matrix 风格的跨域评测,比 3 单量子集的跨域增益。
 # 用法: bash tools/run_phys_matrix.sh
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 mkdir -p logs/physabl
 
 BASE=./data/bus

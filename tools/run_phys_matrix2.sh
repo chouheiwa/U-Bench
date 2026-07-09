@@ -6,7 +6,7 @@
 # 完成后跑 run_phys_cross_matrix 的 busi/BUSBRA 变体做跨域评测 + wilcoxon_cross。
 # 用法: bash tools/run_phys_matrix2.sh
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 mkdir -p logs/physabl
 
 run_group() {  # $1=gpu $2=dataset, rest="phys:seed"...

@@ -4,7 +4,7 @@
 # 手工基线组复用已有 c2a_*/disc_mult02_* checkpoint,不在此脚本。
 # 用法: bash tools/run_calib_matrix.sh
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 mkdir -p logs/calib
 
 base_of() { echo "./data/$1"; }

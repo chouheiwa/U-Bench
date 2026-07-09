@@ -8,7 +8,7 @@
 # 非破坏(只读 checkpoint_best.pth)。须等对应训练跑完。
 # 用法: bash tools/run_phys_cross_matrix.sh [GPU] [SRC]   (SRC 默认 bus)
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 GPU="${1:-0}"
 SRC="${2:-bus}"
 TGTS=(busi bus BUSBRA BrEaST)

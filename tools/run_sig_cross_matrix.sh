@@ -12,7 +12,7 @@
 # 非破坏(只读 checkpoint_best.pth)。须等 calib_BUSBRA_s43 补训完成。
 # 用法: bash tools/run_sig_cross_matrix.sh [GPU]
 set -u
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 GPU="${1:-0}"
 SRCS=(busi bus BUSBRA)
 TGTS=(busi bus BUSBRA BrEaST)

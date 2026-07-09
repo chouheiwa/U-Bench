@@ -2,7 +2,7 @@
 # 巡检 P1.4 标定组 9 个训练: 每 INTERVAL 秒汇报 完成数 / 各 job epoch / best val_iou / 崩溃信号。
 # 全部到 250ep 后输出 DONE 并退出(结束 Monitor watch)。
 # 用法: bash tools/watch_calib.sh [间隔秒=900]
-cd /home/chouheiwa/python/U-Bench
+cd "$(dirname "$0")/.."
 INTERVAL="${1:-900}"
 TOTAL=9
 while true; do

@@ -38,7 +38,7 @@ def build_args(src):
         base_dir=f"./data/{src}", dataset_name=src,
         batch_size=1, seed=42,
         input_channel=3, num_classes=1, do_deeps=False,
-        pretrained_model_path="/home/chouheiwa/experiment/pretrain_model",
+        pretrained_model_path="./pretrained",
         exp_save_dir=f"./output/USEANet/{src}/calib_{src}_s42",
         train_file_dir="train.txt", val_file_dir="val.txt",
         zero_shot_dataset_name=src, zero_shot_base_dir=f"./data/{src}",
