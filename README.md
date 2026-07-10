@@ -1,9 +1,7 @@
 # PUMA-Net: A Lightweight Physics-Anchored Ultrasound Mixture-of-Experts
 
-> **Anonymous release for double-blind review.**
-> This repository accompanies the paper *"PUMA-Net: A Lightweight
-> Physics-Anchored Ultrasound Mixture-of-Experts for Interpretable Lesion
-> Segmentation."* All author/affiliation information is intentionally omitted.
+Research code for a compute-efficient, physics-anchored ultrasound lesion
+segmentation network, built on top of the U-Bench segmentation benchmark.
 
 PUMA-Net is a compute-efficient ultrasound lesion segmentation network. It
 anchors a sparse Mixture-of-Experts in **ultrasound image-formation physics**:
