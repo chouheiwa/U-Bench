@@ -1,6 +1,6 @@
 """Selective-prediction qualitative figure for the reliability-gate paper.
 
-Loads the PUMA-Net (USEANet) BUSI source checkpoint and runs REAL zero-shot
+Loads the physics-anchored engine's BUSI source checkpoint and runs REAL zero-shot
 inference on the BUS-BRA target validation set (cross-domain). For every case it
 computes the paper's label-free confidence signals (mean binary entropy,
 confidence margin, ambiguous-band fraction, predicted foreground fraction) and the
@@ -136,20 +136,22 @@ def main():
             ax.contour(r['gt'], levels=[0.5], colors=['#2ecc40'], linewidths=1.1)
             ax.set_xticks([]); ax.set_yticks([])
             ax.set_title(f"risk={r['risk']:.2f}   IoU={r['iou']:.2f}",
-                         fontsize=7.5, color=col)
-        axes[ri][0].set_ylabel(label, fontsize=9, color=col, fontweight='bold',
-                               labelpad=8, rotation=90, va='center')
+                         fontsize=11, color=col)
+        axes[ri][0].set_ylabel(label, fontsize=12, color=col, fontweight='bold',
+                               labelpad=22, rotation=90, va='center')
     fig.suptitle(
-        f"PUMA-Net (BUSI-trained) zero-shot on {TARGET}: a label-free confidence "
-        f"combination (entropy+margin+band+fg-fraction) ranks per-case reliability\n"
-        f"(gate defers the highest-risk 20%, threshold risk={thr80:.2f}; "
-        f"green = ground-truth contour, red = prediction)",
-        fontsize=8.5, y=1.02)
-    plt.subplots_adjust(left=0.055, right=0.995, top=0.86, bottom=0.02,
-                        wspace=0.05, hspace=0.14)
+        f"Selective prediction under cross-domain shift "
+        f"(source-trained, zero-shot on {TARGET})\n"
+        f"KEEP = 4 lowest-risk cases,  DEFER = 4 highest-risk "
+        f"(gate defers the top-20% risk).  Green = ground truth,  red = prediction.",
+        fontsize=12.5, y=1.03)
+    plt.subplots_adjust(left=0.10, right=0.995, top=0.82, bottom=0.02,
+                        wspace=0.05, hspace=0.32)
     out = os.path.join(REPO, "result/fig_qualitative_gate.png")
-    plt.savefig(out, dpi=185, bbox_inches='tight')
-    print("wrote", out)
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    # vector PDF: text + contours become vector; the B-mode images stay raster
+    plt.savefig(out.replace('.png', '.pdf'), bbox_inches='tight')
+    print("wrote", out, "and .pdf")
     print("KEEP  cases:", [(r['case'], round(r['risk'], 2), round(r['iou'], 2)) for r in keep])
     print("DEFER cases:", [(r['case'], round(r['risk'], 2), round(r['iou'], 2)) for r in defer])
 

@@ -154,9 +154,9 @@ def main():
                                 pi, gi = pred[i, 0], gt[i, 0]
                                 u = (pi | gi).sum()
                                 iou = (pi & gi).sum() / u if u > 0 else 1.0
-                                w.writerow([variant, src, tgt, seed, idx, f"{iou:.4f}",
-                                            f"{ent:.4f}", f"{margin:.4f}", f"{band:.4f}",
-                                            f"{fgfrac:.4f}", f"{pe:.4f}", f"{pm:.4f}"])
+                                w.writerow([variant, src, tgt, seed, idx, f"{iou:.6f}",
+                                            f"{ent:.8f}", f"{margin:.8f}", f"{band:.8f}",
+                                            f"{fgfrac:.8f}", f"{pe:.6f}", f"{pm:.6f}"])
                                 idx += 1
                         fcsv.flush()
                     print(f"[rg] {variant} {src}->{tgt} s{seed}  {idx} cases", flush=True)

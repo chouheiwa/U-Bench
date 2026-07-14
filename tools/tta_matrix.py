@@ -29,6 +29,10 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
+
+ADAPT_BS = 8   # adaptation/self-training batch (eval stays batch=1); fixes the
+               # degenerate SHOT marginal-entropy term under the batch-1 val loader
 
 os.environ["USEANET_CALIB_PROXY"] = "1"
 os.environ.pop("USEANET_CALIB_PHYS", None)
@@ -40,13 +44,21 @@ CSV = os.path.join(REPO, "result", "tta_matrix.csv")
 MODES = ["naive", "bnstats", "entropy", "pseudo", "shot", "physcalib", "physent"]
 
 
-def build_args(src, tgt, seed):
+def _exp_dir(model, src, seed):
+    if model == "USEANet":
+        return f"./output/USEANet/{src}/calib_{src}_s{seed}"
+    # standard backbones: same checkpoint naming as tools/run_gate_multiarch.sh
+    sub = "baseline_s41" if (src == "busi" and seed == 41) else f"mtx_s{seed}"
+    return f"./output/{model}/{src}/{sub}"
+
+
+def build_args(src, tgt, seed, model="USEANet", model_id=115, pretrained="./pretrained"):
     return SimpleNamespace(
-        model="USEANet", model_id=115, img_size=256,
+        model=model, model_id=model_id, img_size=256,
         base_dir=f"./data/{src}", dataset_name=src, batch_size=8, seed=seed,
         input_channel=3, num_classes=1, do_deeps=False,
-        pretrained_model_path="./pretrained",
-        exp_save_dir=f"./output/USEANet/{src}/calib_{src}_s{seed}",
+        pretrained_model_path=pretrained,
+        exp_save_dir=_exp_dir(model, src, seed),
         train_file_dir="train.txt", val_file_dir="val.txt",
         zero_shot_dataset_name=tgt, zero_shot_base_dir=f"./data/{tgt}")
 
@@ -121,19 +133,26 @@ def adapt_and_eval(model, init_sd, loader, mode, steps, lr):
     if mode == "naive":
         model.eval()
         return iou_eval(model, loader)
+    # adaptation runs on a real batch so SHOT's batch-marginal term is meaningful;
+    # evaluation stays on the batch-1 loader for stable per-case IoU.
+    adapt_loader = DataLoader(loader.dataset, batch_size=ADAPT_BS,
+                              shuffle=True, num_workers=1)
     if mode == "bnstats":                    # AdaBN: accumulate target running stats
         for m in model.modules():
             if isinstance(m, (nn.BatchNorm2d, nn.BatchNorm1d)):
                 m.train()
         with torch.no_grad():
             for _ in range(steps):
-                for b in loader:
+                for b in adapt_loader:
                     model(b["image"].to(device))   # momentum-update running_mean/var
         return iou_eval(model, loader)              # eval() now uses target stats
     params = set_bn_affine_trainable(model)
+    if not params:                      # no BatchNorm (e.g. pure-Transformer):
+        model.eval()                    # BN-based SFDA (Tent/SHOT/pseudo-on-BN)
+        return iou_eval(model, loader)  # is N/A -> degenerates to naive
     opt = torch.optim.SGD(params, lr=lr, momentum=0.9)
     for _ in range(steps):
-        for b in loader:
+        for b in adapt_loader:
             out = model(b["image"].to(device))
             if mode == "entropy":
                 loss = entropy_of(out).mean()
@@ -152,6 +171,7 @@ def adapt_and_eval(model, init_sd, loader, mode, steps, lr):
 
 
 def main():
+    global ADAPT_BS
     ap = argparse.ArgumentParser()
     ap.add_argument("--sources", default="busi,bus,BUSBRA")
     ap.add_argument("--targets", default="busi,bus,BUSBRA,BrEaST")
@@ -161,8 +181,15 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--gpu", default="0")
     ap.add_argument("--out", default=CSV)
+    ap.add_argument("--model", default="USEANet")
+    ap.add_argument("--model_id", type=int, default=115)
+    ap.add_argument("--pretrained", default="./pretrained",
+                    help='set "" for standard backbones that do not take pretrained_model_path')
+    ap.add_argument("--adapt_bs", type=int, default=ADAPT_BS,
+                    help="batch size for adaptation steps (eval stays batch-1)")
     a = ap.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = a.gpu
+    ADAPT_BS = a.adapt_bs
     out_csv = a.out
 
     from models import build_model
@@ -178,15 +205,15 @@ def main():
 
     for src in sources:
         for seed in seeds:
-            args0 = build_args(src, src, seed)
-            model = build_model(args0, input_channel=3, num_classes=1,
-                                pretrained_model_path=args0.pretrained_model_path).to(device)
+            args0 = build_args(src, src, seed, a.model, a.model_id, a.pretrained)
+            _pre = {"pretrained_model_path": a.pretrained} if a.pretrained else {}
+            model = build_model(args0, input_channel=3, num_classes=1, **_pre).to(device)
             ck = torch.load(os.path.join(args0.exp_save_dir, "checkpoint_best.pth"),
                             map_location=device, weights_only=False)
             init_sd = copy.deepcopy(ck["state_dict"] if "state_dict" in ck else ck)
             model.load_state_dict(init_sd)
             for tgt in targets:
-                args = build_args(src, tgt, seed)
+                args = build_args(src, tgt, seed, a.model, a.model_id, a.pretrained)
                 loader = getZeroShotDataloader(args)
                 base, n = adapt_and_eval(model, init_sd, loader, "naive", a.steps, a.lr)
                 for mode in modes:

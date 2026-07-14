@@ -84,6 +84,7 @@ def evaluate(a):
 
     valloader = getZeroShotDataloader(args)
     ious, dices, recalls, hds, n_empty = [], [], [], [], 0
+    ents, margins, bands, fgfracs = [], [], [], []
     with torch.no_grad():
         for batch in valloader:
             inp, target = batch["image"].to(device), batch["label"]
@@ -95,16 +96,28 @@ def evaluate(a):
             gt = (target.numpy() > 0.5).astype(np.uint8)
             for b in range(pred.shape[0]):
                 p2, g2 = pred[b, 0], gt[b, 0]
+                pc = prob[b, 0]
                 if p2.sum() == 0 and g2.sum() > 0:
                     n_empty += 1
                 iou, dice, recall = iou_dice_recall(p2, g2)
                 ious.append(iou); dices.append(dice); recalls.append(recall)
                 hds.append(hd95_case(p2, g2))
+                # Label-free reliability-gate signals. Formulas are IDENTICAL to
+                # tools/failure_gate.py:113-117 so multi-architecture rows are
+                # directly comparable to the USEANet gate numbers. These are pure
+                # prediction-side statistics (no ground truth, no model internals),
+                # hence model-agnostic — the whole point of the cross-arch table.
+                pcl = np.clip(pc, 1e-6, 1 - 1e-6)
+                ents.append(float(np.mean(-(pcl * np.log(pcl) + (1 - pcl) * np.log(1 - pcl)))))
+                margins.append(float(np.mean(np.abs(pc - 0.5))))
+                bands.append(float(np.mean((pc > 0.3) & (pc < 0.7))))
+                fgfracs.append(float(np.mean(p2)))
     # Per-case arrays returned alongside aggregates so callers can dump them for
     # paired significance tests (Wilcoxon). Case order is deterministic given the
     # fixed seed, so index i is the same target case across models -> pairable.
     return (float(np.mean(ious)), float(np.mean(dices)), float(np.mean(recalls)),
-            float(np.mean(hds)), len(ious), n_empty, ious, dices, recalls, hds)
+            float(np.mean(hds)), len(ious), n_empty, ious, dices, recalls, hds,
+            ents, margins, bands, fgfracs)
 
 
 def append_row(a, iou, dice, recall, hd, n, n_empty):
@@ -119,21 +132,26 @@ def append_row(a, iou, dice, recall, hd, n, n_empty):
                     f"{iou:.6f}", f"{dice:.6f}", f"{recall:.6f}", f"{hd:.6f}", n, n_empty])
 
 
-def append_percase(a, csv_path, ious, dices, recalls, hds):
+def append_percase(a, csv_path, ious, dices, recalls, hds,
+                   ents, margins, bands, fgfracs):
     """One row per target case -> paired Wilcoxon fodder. Additive; never touches
-    the aggregate CSV. Keyed by (exp_name, source, target, seed, case_idx) so a
-    later join can pair the same case across two models."""
+    the aggregate CSV. Keyed by (modelname, exp_name, source, target, seed,
+    case_idx) so a later join can pair the same case across two models, and the
+    modelname column lets the selective-prediction analysis group by architecture."""
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     new = not os.path.exists(csv_path)
     with open(csv_path, "a", newline="") as f:
         w = csv.writer(f)
         if new:
-            w.writerow(["exp_name", "source", "target", "seed", "case_idx",
-                        "iou", "dice", "recall", "hd95"])
+            w.writerow(["modelname", "exp_name", "source", "target", "seed",
+                        "case_idx", "iou", "dice", "recall", "hd95",
+                        "ent", "margin", "band", "fgfrac"])
         for i in range(len(ious)):
-            w.writerow([a.exp_name, a.source, a.target, a.seed, i,
+            w.writerow([a.model, a.exp_name, a.source, a.target, a.seed, i,
                         f"{ious[i]:.6f}", f"{dices[i]:.6f}",
-                        f"{recalls[i]:.6f}", f"{hds[i]:.6f}"])
+                        f"{recalls[i]:.6f}", f"{hds[i]:.6f}",
+                        f"{ents[i]:.4f}", f"{margins[i]:.4f}",
+                        f"{bands[i]:.4f}", f"{fgfracs[i]:.4f}"])
 
 
 def main():
@@ -154,10 +172,11 @@ def main():
                     help="also write per-case IoU/Dice/Recall/HD95 for paired significance tests")
     ap.add_argument("--percase_csv", default=os.path.join(REPO, "result", "percase_cross_dataset.csv"))
     a = ap.parse_args()
-    iou, dice, recall, hd, n, n_empty, ci, cd, cr, ch = evaluate(a)
+    (iou, dice, recall, hd, n, n_empty,
+     ci, cd, cr, ch, ce, cm, cb, cf) = evaluate(a)
     append_row(a, iou, dice, recall, hd, n, n_empty)
     if a.dump_cases:
-        append_percase(a, a.percase_csv, ci, cd, cr, ch)
+        append_percase(a, a.percase_csv, ci, cd, cr, ch, ce, cm, cb, cf)
     print(f"[xds] {a.model} {a.source}->{a.target} s{a.seed} "
           f"IoU={iou:.4f} Dice={dice:.4f} Recall={recall:.4f} HD95={hd:.4f} "
           f"n={n} empty={n_empty}{' +percase' if a.dump_cases else ''} -> {RESULT_CSV}")
